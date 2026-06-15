@@ -1,0 +1,52 @@
+_format_version: "3.0"
+_transform: true
+
+# =============================================================================
+# Kong DB-less declarative configuration
+# =============================================================================
+
+services:
+  - name: app-backend
+    url: http://app-backend:8080
+    routes:
+      - name: app-backend-api
+        paths:
+          - /api
+        strip_path: false
+      # Expose FastAPI auto-generated docs directly through the gateway
+      - name: app-backend-docs
+        paths:
+          - /docs
+          - /openapi.json
+        strip_path: false
+
+  - name: frontend
+    url: http://frontend:80
+    routes:
+      - name: frontend-root
+        paths:
+          - /
+        strip_path: false
+
+consumers:
+  - username: default-consumer
+    keyauth_credentials:
+      - key: placeholder-api-key
+
+plugins:
+  # Rate limiting: 100 requests/minute per IP
+  - name: rate-limiting
+    config:
+      minute: 100
+      policy: local
+      fault_tolerant: true
+      hide_client_headers: false
+
+  # Key-auth placeholder - disabled for local demo to let the SPA call /api directly.
+  # In production, enable and provide each frontend session an API key.
+  # - name: key-auth
+  #   route: app-backend-api
+  #   config:
+  #     key_names:
+  #       - apikey
+  #     hide_credentials: false

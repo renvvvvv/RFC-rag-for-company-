@@ -1,0 +1,19 @@
+[project]
+name = "enterprise-private-rag-backend"
+version = "0.1.0"
+description = "Enterprise private multimodal RAG system backend"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+profile = "black"
