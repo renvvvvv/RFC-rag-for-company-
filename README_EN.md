@@ -58,7 +58,11 @@
 
 ---
 
+### UI Preview
 
+| Login | Knowledge Search | Model Config |
+|-------|------------------|--------------|
+| ![Login](docs/images/ui_login.png) | ![Search](docs/images/ui_search.png) | ![Model Config](docs/images/ui_model_config.png) |
 
 ---
 
@@ -158,6 +162,16 @@ graph TB
     Prometheus --> Grafana
 ```
 
+![Architecture](docs/images/system_architecture.png)
+
+### RAG Retrieval & Generation Flow
+
+![RAG Flow](docs/images/rag_retrieval_flow.png)
+
+### Context Compression Flow
+
+![Context Compression](docs/images/context_compression.png)
+
 ## 🚀 Quick Start
 
 ### Requirements
@@ -226,6 +240,8 @@ Configure model services in **System Admin → Model Config**:
 
 > Model config is persisted to PostgreSQL and takes effect immediately — no restart required.
 
+![Model Config](docs/images/ui_model_config.png)
+
 ---
 
 ## 📡 API Gateway
@@ -271,6 +287,8 @@ L4 Keyword permission (sensitive word levels)
 - Keywords are annotated via Aho-Corasick automaton for efficient matching.
 - Content below the user's permission level is masked or intercepted.
 
+![Permission Levels](docs/images/permission_levels.png)
+
 ---
 
 ## 🔧 Deployment
@@ -286,6 +304,8 @@ Two independent directories on the server:
 ```
 
 CI/CD deploys to the inactive color, switches traffic after health checks pass.
+
+![Blue-Green Deployment](docs/images/blue_green_deployment.png)
 
 Manual switch:
 

@@ -73,6 +73,12 @@
 | 🎨 **管理后台** | React + Ant Design，支持知识库、上传、检索、权限、模型配置 |
 | 🚀 **蓝绿部署** | GitHub Actions + Docker Compose 蓝绿发布，零停机回滚 |
 
+### 界面预览
+
+| 登录页 | 知识库搜索 | 模型配置 |
+|--------|------------|----------|
+| ![登录页](docs/images/ui_login.png) | ![搜索页](docs/images/ui_search.png) | ![模型配置](docs/images/ui_model_config.png) |
+
 ---
 
 ## 🏗️ 系统架构
@@ -171,6 +177,16 @@ graph TB
     Prometheus --> Grafana
 ```
 
+![系统架构](docs/images/system_architecture.png)
+
+### RAG 检索与生成流程
+
+![RAG 检索流程](docs/images/rag_retrieval_flow.png)
+
+### 上下文压缩流程
+
+![上下文压缩](docs/images/context_compression.png)
+
 ---
 
 ## 🚀 快速开始
@@ -241,6 +257,8 @@ DEPLOY_COLOR=blue docker compose -f docker-compose.app.yml up -d
 
 > 模型配置保存后立即写入数据库并生效，无需重启后端服务。
 
+![模型配置页面](docs/images/ui_model_config.png)
+
 ---
 
 ## 📡 API 网关
@@ -286,6 +304,8 @@ L4 关键词权限（敏感词分级）
 - 关键词标注使用 AC 自动机，高效匹配
 - 低于权限级别的内容自动脱敏或拦截
 
+![五级权限模型](docs/images/permission_levels.png)
+
 ---
 
 ## 🔧 部署
@@ -301,6 +321,8 @@ L4 关键词权限（敏感词分级）
 ```
 
 CI/CD 自动部署到 inactive 颜色，健康检查通过后切换流量。
+
+![蓝绿部署](docs/images/blue_green_deployment.png)
 
 手动切换：
 
