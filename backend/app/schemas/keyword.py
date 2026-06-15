@@ -1,6 +1,7 @@
 """Pydantic schemas for sensitive keyword management."""
+import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -77,3 +78,45 @@ class SensitiveKeywordResponse(SensitiveKeywordBase):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SensitiveScanRequest(BaseModel):
+    """Request body for the sensitive information scan endpoint."""
+
+    text: Optional[str] = Field(default=None, description="自由文本，与 document_id 二选一")
+    document_id: Optional[UUID] = Field(
+        default=None, description="已上传文档 ID，扫描其所有 chunk 内容"
+    )
+
+    @field_validator("document_id", mode="before")
+    @classmethod
+    def _convert_document_id(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, uuid.UUID):
+            return value
+        return uuid.UUID(value)
+
+
+class SensitiveFindingResponse(BaseModel):
+    """A single sensitive finding returned by the scan endpoint."""
+
+    type: str
+    label: str
+    matched_text: str
+    start: int
+    end: int
+    severity: str
+    confidence: float
+    metadata: Dict = Field(default_factory=dict)
+    doc_id: Optional[UUID] = None
+    chunk_index: Optional[int] = None
+
+
+class SensitiveScanResponse(BaseModel):
+    """Response body for the sensitive information scan endpoint."""
+
+    document_id: Optional[UUID] = None
+    findings: List[SensitiveFindingResponse]
+    masked_text: Optional[str] = None
+    summary: Dict[str, Any] = Field(default_factory=dict)

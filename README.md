@@ -354,16 +354,75 @@ bash scripts/rollback.sh
 
 ## 📊 监控与可观测性
 
-项目内置 Prometheus + Grafana 监控栈：
+项目内置 Prometheus + Grafana + Alertmanager 监控栈。
 
-| 指标 | 说明 |
-|------|------|
-| 应用健康状态 | `/api/v1/health` 可用性 |
-| 容器资源 | CPU / 内存 / 网络 |
-| API 请求 | Kong / FastAPI 请求量与延迟 |
-| 模型调用 | Embedding / Re-rank / LLM 失败率 |
+### 访问地址
 
-预置 Dashboard 位于 `monitoring/grafana/dashboards/`。
+| 服务 | 地址 | 说明 |
+|------|------|------|
+| Grafana | http://localhost:3001 | 默认账号 `admin` / `admin` |
+| Prometheus | http://localhost:9090 | 指标查询与告警状态 |
+| Alertmanager | http://localhost:9093 | 告警路由与静默 |
+
+### 预置 Dashboard
+
+| Dashboard | UID | 说明 |
+|-----------|-----|------|
+| RAG System Overview | `rag-overview` | 服务健康、CPU / 内存 / 磁盘 / 网络 |
+| RAG API | `rag-api` | API QPS、延迟分位值、错误率、权限拦截 |
+| RAG Retrieval | `rag-retrieval` | 检索延迟、Milvus 指标、Celery 队列长度 |
+| RAG LLM | `rag-llm` | 模型调用延迟、失败率、调用量（Token 成本占位） |
+
+Dashboard 通过 `monitoring/grafana/dashboards/dashboard.yml` 自动 provision，启动后直接可用。
+
+### 应用指标
+
+后端已内置 `prometheus-client` 指标：
+
+| 指标 | 类型 | 标签 | 说明 |
+|------|------|------|------|
+| `rag_api_requests_total` | Counter | `method`, `endpoint`, `status` | API 请求总量 |
+| `rag_api_request_duration_seconds` | Histogram | `method`, `endpoint` | API 请求耗时 |
+| `rag_retrieval_duration_seconds` | Histogram | `mode` | 检索耗时（hybrid / semantic / keyword） |
+| `rag_generation_duration_seconds` | Histogram | `model`, `status` | LLM 生成耗时 |
+| `rag_permission_intercepts_total` | Counter | `reason` | 权限/安全拦截次数 |
+
+### 告警规则
+
+`monitoring/prometheus/alerts.yml` 已配置以下告警：
+
+| 告警 | 条件 | 严重级别 |
+|------|------|----------|
+| `RAGAPIP99LatencyHigh` | API P99 延迟 > 2s | warning |
+| `RAGAPIErrorRateHigh` | API 错误率 > 1% | critical |
+| `RAGRetrievalLatencyHigh` | 检索 P99 延迟 > 500ms | warning |
+| `RAGCeleryQueueLengthHigh` | Celery 队列长度 > 100 | warning |
+| `RAGPostgresConnectionsHigh` | PostgreSQL 连接数 > 80 | warning |
+| `RAGDiskUsageHigh` | 磁盘使用率 > 75% | warning |
+| `RAGServiceDown` | 任意 scrape target 掉线 | critical |
+
+Alertmanager 配置位于 `monitoring/alertmanager.yml`，默认通过邮件发送；生产环境请替换为 PagerDuty / Slack / 飞书等 receiver。
+
+### 可选 Exporters
+
+部分 exporter 会抓取宿主机资源，默认不随应用一起启动。需要时带 profile 启动：
+
+```bash
+# 启动应用 + 可选 exporter
+docker compose --profile monitoring-exporters up -d
+
+# 或仅启动基础设施 + exporter
+docker compose -f docker-compose.infra.yml --profile monitoring-exporters up -d
+```
+
+| Exporter | 说明 |
+|----------|------|
+| `postgres-exporter` | PostgreSQL 连接、事务、慢查询等指标 |
+| `redis-exporter` | Redis 内存、连接、命令统计 |
+| `rabbitmq-exporter` | RabbitMQ 队列长度、连接数 |
+| `node-exporter` | 宿主机 CPU / 内存 / 磁盘 / 网络 |
+
+Prometheus 已预配好上述 job，exporter 启动后会自动被 scrape。
 
 ---
 

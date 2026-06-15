@@ -12,6 +12,7 @@ from app.retrieval.milvus_client import milvus_store
 from app.retrieval.rerank_client import rerank_client
 from app.services.keyword_service import KeywordService
 from app.services.permission_service import PermissionService
+from app.core.metrics import rag_retrieval_duration_seconds
 
 
 class RetrievalService:
@@ -48,8 +49,11 @@ class RetrievalService:
             rerank_top_k: 重排序后返回数量
             mode: "hybrid" | "semantic" | "keyword"
         """
+        import time
+
         modalities = modalities or ["text", "image", "table", "link"]
         mode = mode.lower()
+        timer = time.perf_counter()
         if mode not in {"hybrid", "semantic", "keyword"}:
             mode = "hybrid"
 
@@ -174,6 +178,9 @@ class RetrievalService:
 
         # 6. Re-rank
         reranked = await rerank_client.rerank(query, filtered, top_k=rerank_top_k)
+        rag_retrieval_duration_seconds.labels(mode=mode).observe(
+            time.perf_counter() - timer
+        )
         return reranked
 
     async def semantic_search(

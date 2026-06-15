@@ -42,6 +42,9 @@ plugins:
       fault_tolerant: true
       hide_client_headers: false
 
+  # Prometheus metrics for Kong (exposed on the admin port at /metrics)
+  - name: prometheus
+
   # Key-auth placeholder - disabled for local demo to let the SPA call /api directly.
   # In production, enable and provide each frontend session an API key.
   # - name: key-auth

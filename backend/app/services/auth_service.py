@@ -35,10 +35,12 @@ class AuthService:
             username=user_data.username,
             email=user_data.email,
             password_hash=self.hash_password(user_data.password),
+            display_name=user_data.display_name,
             department=user_data.department,
             security_level=user_data.security_level,
             role_id=user_data.role_id,
-            status="active"
+            status="active",
+            is_active=True,
         )
         self.db.add(user)
         await self.db.commit()
@@ -54,9 +56,9 @@ class AuthService:
         if not user or not self.verify_password(password, user.password_hash):
             raise AuthenticationException("用户名或密码错误")
         
-        if user.status != "active":
+        if user.status != "active" or not user.is_active:
             raise AuthenticationException("用户已被禁用")
-        
+
         return user
     
     def create_access_token(self, user_id: UUID) -> str:

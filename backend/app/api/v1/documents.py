@@ -10,6 +10,7 @@ from app.schemas.document import DocumentResponse, DocumentListResponse, Documen
 from app.services.document_service import DocumentService
 from app.core.exceptions import NotFoundException
 from app.workers.ingest_tasks import process_document
+from app.core.exceptions import ValidationException
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -96,3 +97,25 @@ async def delete_document(
     except NotFoundException:
         raise HTTPException(status_code=404, detail="Document not found")
     return None
+
+
+@router.post("/{doc_id}/reprocess", response_model=DocumentResponse)
+async def reprocess_document(
+    doc_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """重新运行文档摄取流水线"""
+    service = DocumentService(db)
+    doc = await service.get_document(doc_id)
+
+    if doc.status == "processing":
+        raise ValidationException("文档正在处理中，请稍后再试")
+
+    await service.update_status(
+        doc_id,
+        status="pending",
+        processing_info={"reprocess_requested_by": str(current_user.id)},
+    )
+    process_document.delay(str(doc_id))
+    return doc

@@ -3,6 +3,8 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.pipelines.keyword_annotator import LEVEL_ORDER
+from app.config import settings
+from app.core.metrics import rag_generation_duration_seconds
 from app.services.keyword_service import KeywordService
 from app.services.llm_client import llm_client
 
@@ -27,6 +29,33 @@ class GenerationService:
         history: Optional[List[Dict[str, str]]] = None
     ) -> Any:
         """生成回答"""
+        import time
+
+        start = time.perf_counter()
+        model = getattr(settings, "LLM_MODEL", "unknown")
+        status = "ok"
+        try:
+            return await self._generate_answer(
+                db, query, context_chunks, user_id, stream, history
+            )
+        except Exception:
+            status = "error"
+            raise
+        finally:
+            rag_generation_duration_seconds.labels(
+                model=model, status=status
+            ).observe(time.perf_counter() - start)
+
+    async def _generate_answer(
+        self,
+        db: AsyncSession,
+        query: str,
+        context_chunks: List[Dict[str, Any]],
+        user_id: UUID,
+        stream: bool = False,
+        history: Optional[List[Dict[str, str]]] = None
+    ) -> Any:
+        """Internal generation implementation."""
         context_text = self._build_context(context_chunks)
         messages = [
             {"role": "system", "content": self.SYSTEM_PROMPT},

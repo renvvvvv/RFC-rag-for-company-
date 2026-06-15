@@ -83,7 +83,7 @@ services:
       retries: 5
       start_period: 10s
 
-  milvus:
+  milvus-standalone:
     image: milvusdb/milvus:v2.4.1
     container_name: rag-milvus
     command: ["milvus", "run", "standalone"]
@@ -156,12 +156,26 @@ services:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     networks:
       - rag-network
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: rag-alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    networks:
+      - rag-network
 
   grafana:
     image: grafana/grafana:latest
@@ -176,6 +190,51 @@ services:
       - rag-network
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+
+  # Optional exporters (start with --profile monitoring-exporters)
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: rag-postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: ${DATABASE_URL:-postgresql://rag_user:rag_password@postgres:5432/rag_kb?sslmode=disable}
+    networks:
+      - rag-network
+    profiles:
+      - monitoring-exporters
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: rag-redis-exporter
+    environment:
+      REDIS_ADDR: ${REDIS_URL:-redis://redis:6379}
+    networks:
+      - rag-network
+    profiles:
+      - monitoring-exporters
+
+  rabbitmq-exporter:
+    image: kbudde/rabbitmq-exporter:latest
+    container_name: rag-rabbitmq-exporter
+    environment:
+      RABBIT_URL: ${RABBITMQ_URL:-http://rabbitmq:15672}
+      RABBIT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBIT_PASSWORD: ${RABBITMQ_DEFAULT_PASS:-guest}
+    networks:
+      - rag-network
+    profiles:
+      - monitoring-exporters
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: rag-node-exporter
+    command:
+      - --path.rootfs=/host
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - rag-network
+    profiles:
+      - monitoring-exporters
 
 volumes:
   postgres_data:

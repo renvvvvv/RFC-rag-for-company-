@@ -24,6 +24,7 @@ from app.models.document import Document
 from app.models.knowledge_base import KnowledgeBase
 from app.pipelines.factory import PipelineFactory
 from app.services.keyword_service import KeywordService
+from app.services.sensitive_info_service import SensitiveInfoService
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -120,8 +121,9 @@ async def _process_document_async(doc_id: str) -> Dict[str, Any]:
             await session.commit()
             return {"doc_id": doc_id, "chunks": 0}
 
-        # Keyword annotation and chunk persistence.
+        # Keyword annotation and sensitive information scanning.
         keyword_svc = KeywordService(session)
+        sensitive_svc = SensitiveInfoService(session)
         chunk_records: List[Chunk] = []
         for idx, raw in enumerate(raw_chunks):
             chunk = Chunk(
@@ -141,6 +143,14 @@ async def _process_document_async(doc_id: str) -> Dict[str, Any]:
             chunk.metadata_ = chunk_meta
             chunk_records.append(chunk)
 
+        # Run PII / keyword / NER detection and persist findings in metadata.
+        await sensitive_svc.scan_chunks(chunk_records)
+        high_severity_count = sum(
+            1
+            for c in chunk_records
+            if (c.metadata_ or {}).get("max_builtin_severity") in {"L3", "L4"}
+        )
+
         session.add_all(chunk_records)
         await session.commit()
 
@@ -153,6 +163,13 @@ async def _process_document_async(doc_id: str) -> Dict[str, Any]:
             "stage": "embedding_queued",
             "chunks_created": len(chunk_records),
             "chunk_ids": chunk_ids,
+            "sensitive_scan": {
+                "chunks_scanned": len(chunk_records),
+                "chunks_with_findings": sum(
+                    1 for c in chunk_records if (c.metadata_ or {}).get("has_sensitive_findings")
+                ),
+                "high_severity_chunks": high_severity_count,
+            },
         }
         await session.commit()
 

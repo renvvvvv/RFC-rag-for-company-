@@ -4,16 +4,19 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException
 from app.database import get_db
+from app.models.chunk import Chunk
+from app.models.document import Document
 from app.models.knowledge_base import KnowledgeBase
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
     KnowledgeBaseResponse,
     KnowledgeBaseUpdate,
+    KnowledgeBaseStats,
 )
 
 router = APIRouter(tags=["knowledge-bases"])
@@ -108,3 +111,51 @@ async def delete_knowledge_base(
     await db.delete(kb)
     await db.commit()
     return None
+
+
+@router.get("/knowledge-bases/{kb_id}/stats", response_model=KnowledgeBaseStats)
+async def get_knowledge_base_stats(
+    kb_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return statistics for a knowledge base."""
+    kb = await db.get(KnowledgeBase, kb_id)
+    if kb is None:
+        raise NotFoundException(f"Knowledge base {kb_id} not found")
+
+    kb_id_str = str(kb_id)
+
+    # Document count and status breakdown.
+    doc_count_result = await db.execute(
+        select(func.count(Document.id)).where(Document.kb_id == kb_id_str)
+    )
+    document_count = doc_count_result.scalar() or 0
+
+    status_result = await db.execute(
+        select(Document.status, func.count(Document.id))
+        .where(Document.kb_id == kb_id_str)
+        .group_by(Document.status)
+    )
+    status_breakdown = {status: count for status, count in status_result.all()}
+
+    # Total chunk count.
+    chunk_count_result = await db.execute(
+        select(func.count(Chunk.id)).where(Chunk.doc_id.in_(
+            select(Document.id).where(Document.kb_id == kb_id_str)
+        ))
+    )
+    chunk_count = chunk_count_result.scalar() or 0
+
+    # Last upload time.
+    last_upload_result = await db.execute(
+        select(func.max(Document.created_at)).where(Document.kb_id == kb_id_str)
+    )
+    last_upload_at = last_upload_result.scalar()
+
+    return KnowledgeBaseStats(
+        kb_id=kb_id,
+        document_count=document_count,
+        chunk_count=chunk_count,
+        status_breakdown=status_breakdown,
+        last_upload_at=last_upload_at,
+    )

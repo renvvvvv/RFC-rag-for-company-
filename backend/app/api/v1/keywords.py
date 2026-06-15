@@ -7,12 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException, ValidationException
 from app.database import get_db
+from app.models.chunk import Chunk
+from app.models.document import Document
 from app.schemas.keyword import (
     SensitiveKeywordCreate,
     SensitiveKeywordResponse,
     SensitiveKeywordUpdate,
+    SensitiveScanRequest,
+    SensitiveScanResponse,
 )
 from app.services.keyword_service import KeywordService
+from app.services.sensitive_info_service import SensitiveInfoService
 
 router = APIRouter(tags=["keywords"])
 
@@ -85,3 +90,61 @@ async def batch_import_keywords(
     for item in items:
         created.append(await service.create_keyword(item))
     return created
+
+
+@router.post("/keywords/scan", response_model=SensitiveScanResponse)
+async def scan_text_or_document(
+    payload: SensitiveScanRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Scan provided text or an existing document for sensitive information."""
+    svc = SensitiveInfoService(db)
+
+    if payload.text:
+        findings = await svc.scan_text(payload.text)
+        masked = svc.mask_text(payload.text, findings)
+        return SensitiveScanResponse(
+            findings=findings,
+            masked_text=masked,
+            summary={
+                "total": len(findings),
+                "by_type": _count_by(findings, "type"),
+                "by_label": _count_by(findings, "label"),
+            },
+        )
+
+    if payload.document_id:
+        document = await db.get(Document, payload.document_id)
+        if document is None:
+            raise NotFoundException(f"Document {payload.document_id} not found")
+
+        result = await db.execute(
+            select(Chunk).where(Chunk.doc_id == str(payload.document_id))
+        )
+        chunks = result.scalars().all()
+        chunks_content = [c.content or "" for c in chunks]
+
+        findings = await svc.scan_document_content(payload.document_id, chunks_content)
+        summary = {
+            "total": len(findings),
+            "chunks_scanned": len(chunks_content),
+            "chunks_with_findings": len(
+                {f.get("chunk_index") for f in findings if f.get("chunk_index") is not None}
+            ),
+            "by_type": _count_by(findings, "type"),
+            "by_label": _count_by(findings, "label"),
+        }
+        return SensitiveScanResponse(
+            document_id=payload.document_id,
+            findings=findings,
+            summary=summary,
+        )
+
+    raise ValidationException("Either text or document_id must be provided")
+
+
+def _count_by(findings: List[dict], key: str) -> dict:
+    counts: dict = {}
+    for finding in findings:
+        counts[finding.get(key, "unknown")] = counts.get(finding.get(key, "unknown"), 0) + 1
+    return counts

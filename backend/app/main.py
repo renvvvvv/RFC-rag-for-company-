@@ -1,15 +1,19 @@
 """FastAPI application entry point."""
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import make_asgi_app
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
 from app.config import settings
 from app.core.exceptions import RAGBaseException
 from app.core.logging import RequestIDMiddleware, configure_logging
+from app.core.metrics import rag_api_request_duration_seconds, rag_api_requests_total
 from app.database import AsyncSessionLocal, engine
 
 # Router imports
@@ -88,6 +92,39 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+class PrometheusMiddleware(BaseHTTPMiddleware):
+    """Emit request count and duration metrics for every non-metrics request."""
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        method = request.method
+        status = 500
+        start = time.perf_counter()
+        try:
+            response = await call_next(request)
+            status = response.status_code
+            return response
+        except Exception:
+            status = 500
+            raise
+        finally:
+            duration = time.perf_counter() - start
+            route = request.scope.get("route")
+            endpoint = getattr(route, "path_format", request.url.path)
+            if endpoint != "/metrics":
+                rag_api_request_duration_seconds.labels(
+                    method=method, endpoint=endpoint
+                ).observe(duration)
+                rag_api_requests_total.labels(
+                    method=method, endpoint=endpoint, status=str(status)
+                ).inc()
+
+
+# Prometheus metrics endpoint
+app.mount("/metrics", make_asgi_app())
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
@@ -99,6 +136,9 @@ app.add_middleware(
 
 # Request ID tracking
 app.add_middleware(RequestIDMiddleware)
+
+# Prometheus request metrics
+app.add_middleware(PrometheusMiddleware)
 
 # Register API routers
 app.include_router(health.router, prefix="/api/v1")

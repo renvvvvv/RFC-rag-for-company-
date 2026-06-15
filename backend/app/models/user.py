@@ -42,6 +42,11 @@ class User(Base):
         nullable=True,
         comment="角色ID（RBAC角色）",
     )
+    display_name: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+        comment="显示名称",
+    )
     department: Mapped[str | None] = mapped_column(
         String(128),
         nullable=True,
@@ -58,6 +63,11 @@ class User(Base):
         nullable=False,
         default="active",
         comment="用户状态：active/inactive/locked",
+    )
+    is_active: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=True,
+        comment="是否激活",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

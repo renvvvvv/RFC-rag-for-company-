@@ -1,0 +1,94 @@
+groups:
+  - name: rag_api_alerts
+    interval: 15s
+    rules:
+      - record: job:rag_api_request_duration_seconds:p99
+        expr: histogram_quantile(0.99, sum(rate(rag_api_request_duration_seconds_bucket[5m])) by (le, job))
+
+      - record: job:rag_api_error_rate:ratio5m
+        expr: sum(rate(rag_api_requests_total{status=~"5.."}[5m])) / sum(rate(rag_api_requests_total[5m]))
+
+      - alert: RAGAPIP99LatencyHigh
+        expr: histogram_quantile(0.99, sum(rate(rag_api_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "RAG API P99 latency is above 2 seconds"
+          description: "P99 API latency is {{ $value }}s over the last 5 minutes."
+
+      - alert: RAGAPIErrorRateHigh
+        expr: sum(rate(rag_api_requests_total{status=~"5.."}[5m])) / sum(rate(rag_api_requests_total[5m])) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "RAG API error rate is above 1%"
+          description: "API error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+  - name: rag_retrieval_alerts
+    interval: 15s
+    rules:
+      - record: job:rag_retrieval_duration_seconds:p99
+        expr: histogram_quantile(0.99, sum(rate(rag_retrieval_duration_seconds_bucket[5m])) by (le))
+
+      - alert: RAGRetrievalLatencyHigh
+        expr: histogram_quantile(0.99, sum(rate(rag_retrieval_duration_seconds_bucket[5m])) by (le)) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          team: retrieval
+        annotations:
+          summary: "RAG retrieval latency is above 500 ms"
+          description: "P99 retrieval latency is {{ $value }}s over the last 5 minutes."
+
+  - name: rag_worker_alerts
+    interval: 15s
+    rules:
+      - alert: RAGCeleryQueueLengthHigh
+        expr: rabbitmq_queue_messages{queue=~"celery|ingest|embed|permission_sync"} > 100
+        for: 2m
+        labels:
+          severity: warning
+          team: workers
+        annotations:
+          summary: "Celery queue length is above 100"
+          description: "Queue {{ $labels.queue }} has {{ $value }} messages."
+
+  - name: rag_database_alerts
+    interval: 15s
+    rules:
+      - alert: RAGPostgresConnectionsHigh
+        expr: pg_stat_activity_count > 80
+        for: 2m
+        labels:
+          severity: warning
+          team: database
+        annotations:
+          summary: "PostgreSQL active connections are above 80"
+          description: "Current active connections: {{ $value }}."
+
+  - name: rag_system_alerts
+    interval: 15s
+    rules:
+      - alert: RAGDiskUsageHigh
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.25
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Disk usage is above 75%"
+          description: "Mountpoint {{ $labels.mountpoint }} is more than 75% full."
+
+      - alert: RAGServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Prometheus target {{ $labels.job }} is down"
+          description: "Target {{ $labels.instance }} of job {{ $labels.job }} has been down for more than 1 minute."

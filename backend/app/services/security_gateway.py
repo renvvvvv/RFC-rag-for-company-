@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import CacheManager
+from app.core.metrics import rag_permission_intercepts_total
 from app.pipelines.keyword_annotator import LEVEL_ORDER
 from app.services.keyword_service import KeywordService
 from app.services.permission_service import PermissionService
@@ -48,6 +49,9 @@ class SecurityGateway:
         if max_level >= 4:
             strategy = "local_only"
             reason = "绝密内容禁止调用外部API"
+            rag_permission_intercepts_total.labels(
+                reason="local_only_high_security_level"
+            ).inc()
         elif max_level == 3:
             strategy = "masked_api"
             reason = "机密内容需实体脱敏后调用API"

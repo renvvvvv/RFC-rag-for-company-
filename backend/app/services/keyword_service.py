@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException
+from app.core.metrics import rag_permission_intercepts_total
 from app.models.chunk import Chunk
 from app.models.keyword import KeywordMatchLog, SensitiveKeyword
 from app.models.user import User
@@ -174,6 +175,9 @@ class KeywordService:
             if LEVEL_ORDER.get(m.level, -1) > user_value
         ]
         if over_level:
+            rag_permission_intercepts_total.labels(
+                reason="response_keyword_level"
+            ).inc()
             return InterceptResult(
                 allowed=False,
                 message=self.INTERCEPT_MESSAGE,
@@ -185,6 +189,9 @@ class KeywordService:
             metadata = chunk.metadata_ or {}
             chunk_level = metadata.get("max_keyword_level") or "L0"
             if LEVEL_ORDER.get(chunk_level, -1) > user_value:
+                rag_permission_intercepts_total.labels(
+                    reason="context_keyword_level"
+                ).inc()
                 return InterceptResult(
                     allowed=False,
                     message=self.CONTEXT_VIOLATION_MESSAGE,
