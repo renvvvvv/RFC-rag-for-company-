@@ -43,7 +43,8 @@ frontend/dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
+# Keep package-lock.json in version control for reproducible CI builds
+# package-lock.json
 
 # IDE
 .idea/
