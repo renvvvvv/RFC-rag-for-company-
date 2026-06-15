@@ -36,8 +36,7 @@
 </p>
 
 <!-- 截图 / 架构图占位：后续可替换为真实系统截图 -->
-<!-- <img src="docs/screenshots/architecture.png" alt="系统架构图" width="80%" /> -->
-<p><em>📷 系统截图位置预留，可将 <code>docs/screenshots/architecture.png</code> 替换为实际界面图</em></p>
+<p><em>📷 可渲染架构图源码见 <a href="docs/diagrams/architecture.mmd">docs/diagrams/architecture.mmd</a></em></p>
 
 </div>
 
