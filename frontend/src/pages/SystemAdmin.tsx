@@ -89,9 +89,10 @@ const SystemAdmin = () => {
     fetchUsers()
     fetchGroups()
     fetchModelConfig()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleCreateUser = async (values: any) => {
+  const handleCreateUser = async (values: Record<string, unknown>) => {
     try {
       await api.post('/v1/auth/register', values)
       message.success('用户创建成功')
@@ -103,7 +104,7 @@ const SystemAdmin = () => {
     }
   }
 
-  const handleCreateGroup = async (values: any) => {
+  const handleCreateGroup = async (values: Record<string, unknown>) => {
     try {
       await api.post('/v1/groups', values)
       message.success('用户群创建成功')
@@ -115,7 +116,7 @@ const SystemAdmin = () => {
     }
   }
 
-  const handleSaveModelConfig = async (values: any) => {
+  const handleSaveModelConfig = async (values: Record<string, unknown>) => {
     setSavingModel(true)
     try {
       const res = await api.put('/v1/config/models', values)

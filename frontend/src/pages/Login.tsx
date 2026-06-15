@@ -3,6 +3,7 @@ import { Card, Form, Input, Button, message, Typography } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
+import { getErrorMessage } from '@/utils/error'
 
 const { Title } = Typography
 
@@ -30,8 +31,8 @@ const Login = () => {
       setUser(user)
       message.success('登录成功')
       navigate('/')
-    } catch (e: any) {
-      message.error(e.response?.data?.detail || '登录失败')
+    } catch (e: unknown) {
+      message.error(getErrorMessage(e, '登录失败'))
     } finally {
       setLoading(false)
     }

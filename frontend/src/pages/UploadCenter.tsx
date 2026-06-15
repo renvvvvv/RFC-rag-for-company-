@@ -83,10 +83,12 @@ const UploadCenter = () => {
 
   useEffect(() => {
     fetchKBs()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     fetchDocs()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKb])
 
   const customUpload: UploadProps['customRequest'] = async (options) => {

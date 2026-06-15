@@ -72,7 +72,7 @@ const PermissionMgr = () => {
     fetchGroups()
   }, [])
 
-  const handleCreateKeyword = async (values: any) => {
+  const handleCreateKeyword = async (values: Record<string, unknown> & { variants?: string }) => {
     try {
       await api.post('/v1/keywords', {
         ...values,
