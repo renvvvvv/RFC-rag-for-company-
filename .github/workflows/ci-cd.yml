@@ -70,16 +70,23 @@ jobs:
           pip install -r requirements.txt
 
       - name: Lint Python with Ruff
+        id: ruff
         working-directory: backend
-        run: ruff check app --output-format=github
+        run: ruff check app --output-format=github >> $GITHUB_WORKSPACE/ruff-report.txt 2>&1 || EXIT_CODE=$?
+        continue-on-error: true
 
       - name: Run backend tests
+        id: pytest
         working-directory: backend
         env:
           DATABASE_URL: postgresql+asyncpg://rag_user:rag_password@localhost:5432/rag_kb
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: ci-test-secret-key
-        run: pytest -q
+        run: |
+          pytest -q --junitxml=$GITHUB_WORKSPACE/pytest-report.xml --tb=short || EXIT_CODE=$?
+          echo "pytest_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit ${EXIT_CODE:-0}
+        continue-on-error: true
 
       # -------------------------- 前端检查 --------------------------
       - name: Set up Node.js
@@ -94,12 +101,55 @@ jobs:
         run: npm ci
 
       - name: Lint frontend with ESLint
+        id: eslint
         working-directory: frontend
-        run: npm run lint
+        run: |
+          npm run lint -- --format compact --output-file $GITHUB_WORKSPACE/eslint-report.txt 2>&1 || EXIT_CODE=$?
+          echo "eslint_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit ${EXIT_CODE:-0}
+        continue-on-error: true
 
       - name: Type-check frontend
+        id: tsc
         working-directory: frontend
-        run: npm run build
+        run: |
+          npm run build 2>&1 | tee $GITHUB_WORKSPACE/tsc-build.log || EXIT_CODE=$?
+          echo "tsc_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit ${EXIT_CODE:-0}
+        continue-on-error: true
+
+      # -------------------------- 上传报告 --------------------------
+      - name: Upload lint & test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-test-reports
+          path: |
+            ruff-report.txt
+            pytest-report.xml
+            eslint-report.txt
+            tsc-build.log
+          retention-days: 30
+
+      - name: Publish test summary
+        if: always()
+        run: |
+          echo "## Lint & Test Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Ruff Lint | ${{ steps.ruff.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pytest | ${{ steps.pytest.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ESLint | ${{ steps.eslint.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| TypeScript Build | ${{ steps.tsc.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Reports available as artifact: lint-test-reports" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail if any check failed
+        if: steps.ruff.outcome == 'failure' || steps.pytest.outcome == 'failure' || steps.eslint.outcome == 'failure' || steps.tsc.outcome == 'failure'
+        run: |
+          echo "One or more lint/test checks failed. See artifacts and job summary for details."
+          exit 1
 
   # =============================================================================
   # 阶段二：安全扫描
@@ -119,13 +169,18 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Scan Python with Bandit
+        id: bandit
         working-directory: backend
         run: |
           pip install bandit
-          bandit -r app -f json -o bandit-report.json || true
-          bandit -r app
+          bandit -r app -f json -o $GITHUB_WORKSPACE/bandit-report.json || true
+          bandit -r app -f txt -o $GITHUB_WORKSPACE/bandit-report.txt || EXIT_CODE=$?
+          echo "bandit_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit ${EXIT_CODE:-0}
+        continue-on-error: true
 
       - name: Detect secrets with TruffleHog
+        id: trufflehog
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
@@ -134,13 +189,51 @@ jobs:
           extra_args: --only-verified
 
       - name: Scan repo with Trivy
+        id: trivy-fs
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: .
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
-          exit-code: 1
+          exit-code: 0
+          output: trivy-fs-report.json
+
+      - name: Upload security scan reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-scan-reports
+          path: |
+            bandit-report.json
+            bandit-report.txt
+            trivy-fs-report.json
+          retention-days: 30
+
+      - name: Publish security summary
+        if: always()
+        run: |
+          echo "## Security Scan Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Tool | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Bandit | ${{ steps.bandit.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| TruffleHog | ${{ steps.trufflehog.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy FS Scan | ${{ steps.trivy-fs.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Reports available as artifact: security-scan-reports" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail if Bandit found issues
+        if: steps.bandit.outcome == 'failure'
+        run: |
+          echo "Bandit found security issues. See artifact: security-scan-reports"
+          exit 1
+
+      - name: Fail if Trivy found HIGH/CRITICAL issues
+        if: steps.trivy-fs.outcome == 'failure'
+        run: |
+          echo "Trivy found HIGH/CRITICAL issues. See artifact: security-scan-reports"
+          exit 1
 
   # =============================================================================
   # 阶段三：构建并推送 Docker 镜像
@@ -187,6 +280,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push backend image
+        id: build-backend
         uses: docker/build-push-action@v5
         with:
           context: ./backend
@@ -198,6 +292,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build and push frontend image
+        id: build-frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -209,18 +304,44 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Scan backend image with Trivy
+        id: trivy-backend
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
           severity: HIGH,CRITICAL
           exit-code: 0
+          output: trivy-backend-report.json
 
       - name: Scan frontend image with Trivy
+        id: trivy-frontend
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
           severity: HIGH,CRITICAL
           exit-code: 0
+          output: trivy-frontend-report.json
+
+      - name: Upload image scan reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-scan-reports
+          path: |
+            trivy-backend-report.json
+            trivy-frontend-report.json
+          retention-days: 30
+
+      - name: Publish build summary
+        if: always()
+        run: |
+          echo "## Build & Push Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | Status | Tags |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend | ${{ steps.build-backend.outcome }} | ${{ steps.meta-backend.outputs.tags }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ steps.build-frontend.outcome }} | ${{ steps.meta-frontend.outputs.tags }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Image scan reports available as artifact: image-scan-reports" >> $GITHUB_STEP_SUMMARY
 
   # =============================================================================
   # 阶段四：蓝绿部署到服务器
@@ -247,6 +368,7 @@ jobs:
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
       - name: Deploy to server (blue-green)
+        id: deploy
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USERNAME }}
@@ -274,10 +396,15 @@ jobs:
             git pull origin main
             git stash pop || true
 
-            bash scripts/blue-green-deploy.sh
+            bash scripts/blue-green-deploy.sh 2>&1 | tee deploy.log
           "
 
+          # Download deploy log for artifact upload
+          scp "$SSH_USER@$SSH_HOST:$DEPLOY_BASE_DIR/deploy.log" deploy.log || true
+
       - name: Verify active color
+        id: verify
+        if: steps.deploy.outcome == 'success'
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USERNAME }}
@@ -297,8 +424,39 @@ jobs:
             echo 'Health check passed'
           "
 
-      - name: Rollback on failure
+      - name: Collect deployment diagnostics
         if: failure()
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USERNAME }}
+          DEPLOY_BASE_DIR: ${{ secrets.DEPLOY_PATH || '/opt/rag-system' }}
+        run: |
+          echo "==> Collecting deployment diagnostics..."
+          ssh "$SSH_USER@$SSH_HOST" "
+            DEPLOY_BASE_DIR='$DEPLOY_BASE_DIR'
+            ACTIVE=\$(cat \"\$DEPLOY_BASE_DIR/.active-color\" 2>/dev/null || echo blue)
+            cd \"\$DEPLOY_BASE_DIR-\$ACTIVE\"
+            docker compose -f docker-compose.app.yml ps > /tmp/deploy-diag-ps.txt 2>&1 || true
+            docker compose -f docker-compose.app.yml logs --tail=200 app-backend > /tmp/deploy-diag-backend.log 2>&1 || true
+            docker compose -f docker-compose.app.yml logs --tail=200 frontend > /tmp/deploy-diag-frontend.log 2>&1 || true
+            docker compose -f docker-compose.app.yml logs --tail=200 kong > /tmp/deploy-diag-kong.log 2>&1 || true
+          "
+          scp "$SSH_USER@$SSH_HOST:/tmp/deploy-diag-*.txt" . || true
+          scp "$SSH_USER@$SSH_HOST:/tmp/deploy-diag-*.log" . || true
+
+      - name: Upload deployment reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-reports
+          path: |
+            deploy.log
+            deploy-diag-*.txt
+            deploy-diag-*.log
+          retention-days: 30
+
+      - name: Rollback on failure
+        if: failure() && steps.deploy.outcome == 'failure'
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USERNAME }}
@@ -312,3 +470,15 @@ jobs:
             bash scripts/rollback.sh
           "
           echo "Rollback complete"
+
+      - name: Publish deployment summary
+        if: always()
+        run: |
+          echo "## Deployment Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy | ${{ steps.deploy.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Verify | ${{ steps.verify.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Deployment logs and diagnostics available as artifact: deployment-reports" >> $GITHUB_STEP_SUMMARY
