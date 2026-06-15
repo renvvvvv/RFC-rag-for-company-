@@ -256,21 +256,53 @@ jobs:
 
           ssh "$SSH_USER@$SSH_HOST" "
             set -e
-            cd $DEPLOY_PATH
+            DEPLOY_PATH='$DEPLOY_PATH'
+            REGISTRY='${{ env.REGISTRY }}'
+            REGISTRY_USERNAME='${{ secrets.REGISTRY_USERNAME }}'
+            REGISTRY_PASSWORD='${{ secrets.REGISTRY_PASSWORD }}'
 
-            # Pull latest compose definitions
-            git fetch origin
-            git reset --hard origin/main
+            # 1. Ensure Docker is available (do NOT install system-wide software)
+            if ! command -v docker >/dev/null 2>&1; then
+              echo 'ERROR: Docker is not installed on the server.'
+              echo 'Please install Docker and Docker Compose manually, then re-run the workflow.'
+              exit 1
+            fi
+            if ! docker compose version >/dev/null 2>&1; then
+              echo 'ERROR: Docker Compose plugin is not installed on the server.'
+              exit 1
+            fi
 
-            # Login to registry on the server
-            echo '${{ secrets.REGISTRY_PASSWORD }}' | docker login ${{ env.REGISTRY }} -u '${{ secrets.REGISTRY_USERNAME }}' --password-stdin
+            # 2. Prepare deployment directory
+            if [ ! -d \"\$DEPLOY_PATH/.git\" ]; then
+              echo \"Cloning repository into \$DEPLOY_PATH\"
+              git clone 'https://github.com/renvvvvv/RFC-rag-for-company-.git' \"\$DEPLOY_PATH\"
+            fi
+            cd \"\$DEPLOY_PATH\"
 
-            # Pull and restart services
+            # 3. Pull latest code safely (never reset --hard to preserve local .env)
+            git stash push -m 'ci-cd-auto-stash' || true
+            git pull origin main
+            git stash pop || true
+
+            # 4. Protect existing .env; never overwrite it
+            if [ ! -f 'backend/.env' ]; then
+              echo 'backend/.env not found, creating from template.'
+              cp backend/.env.example backend/.env
+              echo 'WARNING: please edit backend/.env with real credentials before using the system.'
+            else
+              echo 'backend/.env exists, preserving it.'
+            fi
+
+            # 5. Record currently running images for rollback reference
+            echo 'Currently running images:'
+            docker compose ps --format 'table {{.Service}}\t{{.Image}}' || true
+            docker compose images > .last-deploy-images.txt || true
+
+            # 6. Login, pull and restart ONLY this project's services
+            echo \"\$REGISTRY_PASSWORD\" | docker login \"\$REGISTRY\" -u \"\$REGISTRY_USERNAME\" --password-stdin
             docker compose pull
             docker compose up -d
-
-            # Cleanup old images
-            docker image prune -af
+            docker logout \"\$REGISTRY\" || true
 
             echo 'Deployment complete'
           "
@@ -283,9 +315,39 @@ jobs:
         run: |
           set -e
           sleep 15
+          echo "==> Running health check"
+
           ssh "$SSH_USER@$SSH_HOST" "
-            cd $DEPLOY_PATH
+            set -e
+            DEPLOY_PATH='$DEPLOY_PATH'
+            cd \"\$DEPLOY_PATH\"
+
+            echo 'Service status:'
             docker compose ps
-            docker compose exec -T app-backend curl -fsS http://localhost:8080/api/v1/health || exit 1
+
+            echo 'Health endpoint:'
+            docker compose exec -T app-backend curl -fsS http://localhost:8080/api/v1/health
+            echo ''
             echo 'Health check passed'
           "
+
+      - name: Rollback on failure
+        if: failure()
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USERNAME }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/rag-system' }}
+        run: |
+          echo "==> Deployment or health check failed. Gathering diagnostics..."
+          ssh "$SSH_USER@$SSH_HOST" "
+            DEPLOY_PATH='$DEPLOY_PATH'
+            cd \"\$DEPLOY_PATH\"
+            echo 'Container status:'
+            docker compose ps
+            echo 'Backend logs (last 100 lines):'
+            docker compose logs --tail=100 app-backend || true
+            echo 'Previous deployment images saved in .last-deploy-images.txt:'
+            cat .last-deploy-images.txt || echo 'No rollback snapshot found.'
+            echo 'To rollback manually, set IMAGE_TAG to the previous tag and run: docker compose up -d'
+          "
+          exit 1
