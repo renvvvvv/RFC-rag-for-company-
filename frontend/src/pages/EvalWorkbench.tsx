@@ -32,7 +32,7 @@ interface EvaluationDataset {
   kb_id: string
   name: string
   questions: string[]
-  ground_truths: Record<string, any>[]
+  ground_truths: Record<string, unknown>[]
   created_at: string
 }
 
@@ -42,7 +42,7 @@ interface EvaluationTask {
   kb_id: string
   status: string
   metrics: string[]
-  results: Record<string, any>
+  results: Record<string, unknown>
   created_at: string
   completed_at?: string
 }
@@ -163,7 +163,7 @@ const EvalWorkbench = () => {
     {
       title: '问题数',
       key: 'question_count',
-      render: (_: any, record: EvaluationDataset) => record.questions.length,
+      render: (_: string, record: EvaluationDataset) => record.questions.length,
     },
     {
       title: '创建时间',
@@ -208,7 +208,7 @@ const EvalWorkbench = () => {
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: EvaluationTask) => (
+      render: (_: string, record: EvaluationTask) => (
         <Button type="link" onClick={() => setSelectedTask(record)}>
           查看结果
         </Button>
@@ -217,7 +217,7 @@ const EvalWorkbench = () => {
   ]
 
   const renderAggregatedResults = (task: EvaluationTask) => {
-    const aggregated = task.results?.aggregated || {}
+    const aggregated = (task.results?.aggregated || {}) as Record<string, unknown>
     const entries = Object.entries(aggregated).filter(([key]) => key !== 'samples')
     if (entries.length === 0) {
       return <Text type="secondary">暂无结果</Text>
@@ -412,11 +412,15 @@ const EvalWorkbench = () => {
               <Text strong>聚合指标</Text>
               {renderAggregatedResults(selectedTask)}
             </div>
-            {selectedTask.results?.aggregated?.samples && (
+            {Boolean((selectedTask.results?.aggregated as Record<string, unknown> | undefined)?.samples) && (
               <div style={{ marginTop: 16 }}>
                 <Text strong>样本详情</Text>
                 <pre style={{ maxHeight: 300, overflow: 'auto', background: '#f6f6f6', padding: 12 }}>
-                  {JSON.stringify(selectedTask.results.aggregated.samples, null, 2)}
+                  {JSON.stringify(
+                    (selectedTask.results?.aggregated as Record<string, unknown> | undefined)?.samples,
+                    null,
+                    2
+                  )}
                 </pre>
               </div>
             )}

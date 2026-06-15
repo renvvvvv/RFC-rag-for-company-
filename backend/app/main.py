@@ -22,6 +22,7 @@ from app.api.v1 import auth, health
 # Placeholder routers for upcoming modules
 from app.api.v1 import (
     chat,
+    collaboration,
     config,
     documents,
     eval,
@@ -66,6 +67,21 @@ async def lifespan(app: FastAPI):
         async with AsyncSessionLocal() as db:
             await load_runtime_config(db)
             await db.close()
+
+        # Load sensitive keywords for stream intercept
+        try:
+            from app.models.keyword import SensitiveKeyword
+            from app.services.generation_service import GenerationService
+            from sqlalchemy import select
+
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(select(SensitiveKeyword))
+                keywords = list(result.scalars().all())
+                GenerationService.load_stream_annotator(keywords)
+                await db.close()
+            logging.info("Stream keyword annotator loaded")
+        except Exception as exc:  # noqa: BLE001
+            logging.warning("Failed to load stream keyword annotator: %s", exc)
 
         logging.info("Application startup completed")
     except Exception as exc:  # noqa: BLE001
@@ -153,6 +169,7 @@ app.include_router(groups.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(config.router, prefix="/api/v1")
 app.include_router(eval.router, prefix="/api/v1")
+app.include_router(collaboration.router, prefix="/api/v1")
 
 
 @app.exception_handler(RAGBaseException)

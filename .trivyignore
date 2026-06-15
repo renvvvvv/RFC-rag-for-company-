@@ -1,0 +1,3 @@
+# Trivy accepted-risk / false-positive registry.
+# Format:
+#   CVE-YYYY-NNNN  # justification with ticket / owner

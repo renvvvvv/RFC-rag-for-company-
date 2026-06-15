@@ -27,6 +27,13 @@ from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
 )
+from app.schemas.collaboration import (
+    BookmarkCreate,
+    BookmarkResponse,
+    CommentCreate,
+    CommentResponse,
+    CommentUpdate,
+)
 from app.schemas.user import (
     UserCreate,
     UserLogin,
@@ -53,6 +60,11 @@ __all__ = [
     "SearchHistoryResponse",
     "ChatRequest",
     "ChatResponse",
+    "BookmarkCreate",
+    "BookmarkResponse",
+    "CommentCreate",
+    "CommentResponse",
+    "CommentUpdate",
     "UserCreate",
     "UserLogin",
     "UserResponse",

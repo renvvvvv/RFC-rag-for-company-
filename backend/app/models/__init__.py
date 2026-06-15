@@ -1,6 +1,7 @@
 """SQLAlchemy models package."""
 from app.models.audit import AuditLog
 from app.models.chunk import Chunk
+from app.models.collaboration import Bookmark, Comment
 from app.models.conversation import Conversation
 from app.models.document import Document
 from app.models.evaluation import EvaluationDataset, EvaluationTask
@@ -23,7 +24,9 @@ from app.models.user import User
 __all__ = [
     "SystemConfig",
     "AuditLog",
+    "Bookmark",
     "Chunk",
+    "Comment",
     "Conversation",
     "Document",
     "EvaluationDataset",

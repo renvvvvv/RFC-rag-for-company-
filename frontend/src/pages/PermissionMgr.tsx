@@ -10,12 +10,16 @@ import {
   message,
   Tag,
   Tabs,
+  Space,
 } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import api from '@/services/api'
 
+import { Typography } from 'antd'
+
 const { TabPane } = Tabs
 const { Option } = Select
+const { Text } = Typography
 
 interface SensitiveKeyword {
   id: string
@@ -49,6 +53,21 @@ const PermissionMgr = () => {
   const [keywordModal, setKeywordModal] = useState(false)
   const [keywordForm] = Form.useForm()
 
+  // Permission forms state
+  const [permissionTab, setPermissionTab] = useState('document')
+  const [checkDocId, setCheckDocId] = useState('')
+  const [checkResult, setCheckResult] = useState<{
+    doc_id: string
+    permission: string
+    security_level: string
+  } | null>(null)
+  const [permissionLoading, setPermissionLoading] = useState(false)
+
+  const [docPermForm] = Form.useForm()
+  const [fileTypePermForm] = Form.useForm()
+  const [fieldPermForm] = Form.useForm()
+  const [tagPermForm] = Form.useForm()
+
   const fetchKeywords = async () => {
     try {
       const res = await api.get('/v1/keywords')
@@ -72,7 +91,9 @@ const PermissionMgr = () => {
     fetchGroups()
   }, [])
 
-  const handleCreateKeyword = async (values: Record<string, unknown> & { variants?: string }) => {
+  const handleCreateKeyword = async (
+    values: Record<string, unknown> & { variants?: string }
+  ) => {
     try {
       await api.post('/v1/keywords', {
         ...values,
@@ -84,6 +105,117 @@ const PermissionMgr = () => {
       fetchKeywords()
     } catch (e) {
       message.error('创建失败')
+    }
+  }
+
+  const handleSetDocumentPermission = async (values: {
+    target_type: string
+    target_id: string
+    doc_id: string
+    permission: string
+  }) => {
+    setPermissionLoading(true)
+    try {
+      await api.post('/v1/permissions/document', values)
+      message.success('文档权限设置成功')
+      docPermForm.resetFields()
+    } catch (e) {
+      message.error('文档权限设置失败')
+    } finally {
+      setPermissionLoading(false)
+    }
+  }
+
+  const handleSetFileTypePermission = async (values: {
+    target_type: string
+    target_id: string
+    file_type: string
+    permissions: string
+  }) => {
+    setPermissionLoading(true)
+    try {
+      await api.post('/v1/permissions/file-type', {
+        target_type: values.target_type,
+        target_id: values.target_id,
+        file_type: values.file_type,
+        permissions: values.permissions.split(',').map((s: string) => s.trim()),
+      })
+      message.success('文件类型权限设置成功')
+      fileTypePermForm.resetFields()
+    } catch (e) {
+      message.error('文件类型权限设置失败')
+    } finally {
+      setPermissionLoading(false)
+    }
+  }
+
+  const handleSetFieldPermission = async (values: {
+    target_type: string
+    target_id: string
+    doc_id: string
+    file_type: string
+    config_json: string
+  }) => {
+    setPermissionLoading(true)
+    try {
+      const config = values.config_json ? JSON.parse(values.config_json) : {}
+      await api.post('/v1/permissions/field', {
+        target_type: values.target_type,
+        target_id: values.target_id,
+        doc_id: values.doc_id,
+        file_type: values.file_type,
+        word_config: config.word_config,
+        excel_config: config.excel_config,
+      })
+      message.success('字段权限设置成功')
+      fieldPermForm.resetFields()
+    } catch (e) {
+      message.error('字段权限设置失败，请检查 JSON 格式')
+    } finally {
+      setPermissionLoading(false)
+    }
+  }
+
+  const handleSetTagPermission = async (values: {
+    target_type: string
+    target_id: string
+    allowed_tags: string
+    denied_tags: string
+  }) => {
+    setPermissionLoading(true)
+    try {
+      await api.post('/v1/permissions/tag', {
+        target_type: values.target_type,
+        target_id: values.target_id,
+        allowed_tags: values.allowed_tags
+          ? values.allowed_tags.split(',').map((s: string) => s.trim())
+          : [],
+        denied_tags: values.denied_tags
+          ? values.denied_tags.split(',').map((s: string) => s.trim())
+          : [],
+      })
+      message.success('标签权限设置成功')
+      tagPermForm.resetFields()
+    } catch (e) {
+      message.error('标签权限设置失败')
+    } finally {
+      setPermissionLoading(false)
+    }
+  }
+
+  const handleCheckPermission = async () => {
+    if (!checkDocId) {
+      message.warning('请输入文档ID')
+      return
+    }
+    setPermissionLoading(true)
+    try {
+      const res = await api.get(`/v1/permissions/check/${checkDocId}`)
+      setCheckResult(res.data)
+    } catch (e) {
+      message.error('权限检查失败')
+    } finally {
+      setPermissionLoading(false)
     }
   }
 
@@ -142,6 +274,238 @@ const PermissionMgr = () => {
             <Table rowKey="id" dataSource={groups} columns={groupColumns} />
           </Card>
         </TabPane>
+
+        <TabPane tab="权限设置" key="permissions">
+          <Card title="权限管理">
+            <Tabs activeKey={permissionTab} onChange={setPermissionTab}>
+              <TabPane tab="文档权限" key="document">
+                <Form
+                  form={docPermForm}
+                  layout="vertical"
+                  onFinish={handleSetDocumentPermission}
+                >
+                  <Form.Item
+                    name="target_type"
+                    label="目标类型"
+                    initialValue="group"
+                    rules={[{ required: true }]}
+                  >
+                    <Select>
+                      <Option value="user">用户</Option>
+                      <Option value="group">用户群</Option>
+                      <Option value="role">角色</Option>
+                    </Select>
+                  </Form.Item>
+                  <Form.Item
+                    name="target_id"
+                    label="目标ID"
+                    rules={[{ required: true, message: '请输入目标ID' }]}
+                  >
+                    <Input />
+                  </Form.Item>
+                  <Form.Item
+                    name="doc_id"
+                    label="文档ID"
+                    rules={[{ required: true, message: '请输入文档ID' }]}
+                  >
+                    <Input />
+                  </Form.Item>
+                  <Form.Item
+                    name="permission"
+                    label="权限"
+                    initialValue="READ"
+                    rules={[{ required: true }]}
+                  >
+                    <Select>
+                      <Option value="NONE">无</Option>
+                      <Option value="READ">读</Option>
+                      <Option value="WRITE">写</Option>
+                      <Option value="ADMIN">管理</Option>
+                    </Select>
+                  </Form.Item>
+                  <Button type="primary" htmlType="submit" loading={permissionLoading}>
+                    设置
+                  </Button>
+                </Form>
+              </TabPane>
+
+              <TabPane tab="文件类型权限" key="file-type">
+                <Form
+                  form={fileTypePermForm}
+                  layout="vertical"
+                  onFinish={handleSetFileTypePermission}
+                >
+                  <Form.Item
+                    name="target_type"
+                    label="目标类型"
+                    initialValue="group"
+                    rules={[{ required: true }]}
+                  >
+                    <Select>
+                      <Option value="user">用户</Option>
+                      <Option value="group">用户群</Option>
+                      <Option value="role">角色</Option>
+                    </Select>
+                  </Form.Item>
+                  <Form.Item
+                    name="target_id"
+                    label="目标ID"
+                    rules={[{ required: true, message: '请输入目标ID' }]}
+                  >
+                    <Input />
+                  </Form.Item>
+                  <Form.Item
+                    name="file_type"
+                    label="文件类型"
+                    rules={[{ required: true, message: '请输入文件类型' }]}
+                  >
+                    <Input placeholder="例如：pdf, docx, xlsx" />
+                  </Form.Item>
+                  <Form.Item
+                    name="permissions"
+                    label="权限（逗号分隔）"
+                    initialValue="READ"
+                    rules={[{ required: true }]}
+                  >
+                    <Input placeholder="例如：READ,WRITE" />
+                  </Form.Item>
+                  <Button type="primary" htmlType="submit" loading={permissionLoading}>
+                    设置
+                  </Button>
+                </Form>
+              </TabPane>
+
+              <TabPane tab="字段权限" key="field">
+                <Form
+                  form={fieldPermForm}
+                  layout="vertical"
+                  onFinish={handleSetFieldPermission}
+                >
+                  <Form.Item
+                    name="target_type"
+                    label="目标类型"
+                    initialValue="group"
+                    rules={[{ required: true }]}
+                  >
+                    <Select>
+                      <Option value="user">用户</Option>
+                      <Option value="group">用户群</Option>
+                      <Option value="role">角色</Option>
+                    </Select>
+                  </Form.Item>
+                  <Form.Item
+                    name="target_id"
+                    label="目标ID"
+                    rules={[{ required: true, message: '请输入目标ID' }]}
+                  >
+                    <Input />
+                  </Form.Item>
+                  <Form.Item
+                    name="doc_id"
+                    label="文档ID"
+                    rules={[{ required: true, message: '请输入文档ID' }]}
+                  >
+                    <Input />
+                  </Form.Item>
+                  <Form.Item
+                    name="file_type"
+                    label="文件类型"
+                    initialValue="word"
+                    rules={[{ required: true }]}
+                  >
+                    <Select>
+                      <Option value="word">Word</Option>
+                      <Option value="excel">Excel</Option>
+                    </Select>
+                  </Form.Item>
+                  <Form.Item
+                    name="config_json"
+                    label="配置 JSON"
+                    rules={[{ required: true, message: '请输入配置 JSON' }]}
+                  >
+                    <Input.TextArea
+                      rows={5}
+                      placeholder='{"word_config": {...}, "excel_config": {...}}'
+                    />
+                  </Form.Item>
+                  <Button type="primary" htmlType="submit" loading={permissionLoading}>
+                    设置
+                  </Button>
+                </Form>
+              </TabPane>
+
+              <TabPane tab="标签权限" key="tag">
+                <Form
+                  form={tagPermForm}
+                  layout="vertical"
+                  onFinish={handleSetTagPermission}
+                >
+                  <Form.Item
+                    name="target_type"
+                    label="目标类型"
+                    initialValue="group"
+                    rules={[{ required: true }]}
+                  >
+                    <Select>
+                      <Option value="user">用户</Option>
+                      <Option value="group">用户群</Option>
+                      <Option value="role">角色</Option>
+                    </Select>
+                  </Form.Item>
+                  <Form.Item
+                    name="target_id"
+                    label="目标ID"
+                    rules={[{ required: true, message: '请输入目标ID' }]}
+                  >
+                    <Input />
+                  </Form.Item>
+                  <Form.Item name="allowed_tags" label="允许标签（逗号分隔）">
+                    <Input placeholder="例如：公开,内部" />
+                  </Form.Item>
+                  <Form.Item name="denied_tags" label="拒绝标签（逗号分隔）">
+                    <Input placeholder="例如：机密,绝密" />
+                  </Form.Item>
+                  <Button type="primary" htmlType="submit" loading={permissionLoading}>
+                    设置
+                  </Button>
+                </Form>
+              </TabPane>
+
+              <TabPane tab="权限检查" key="check">
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Input
+                    placeholder="文档ID"
+                    value={checkDocId}
+                    onChange={(e) => setCheckDocId(e.target.value)}
+                  />
+                  <Button type="primary" onClick={handleCheckPermission} loading={permissionLoading}>
+                    检查
+                  </Button>
+                  {checkResult && (
+                    <Card size="small">
+                      <div>
+                        <Text strong>文档ID：</Text>
+                        {checkResult.doc_id}
+                      </div>
+                      <div>
+                        <Text strong>权限：</Text>
+                        <Tag color={checkResult.permission === 'NONE' ? 'red' : 'green'}>
+                          {checkResult.permission}
+                        </Tag>
+                      </div>
+                      <div>
+                        <Text strong>安全级别：</Text>
+                        <Tag color={LEVEL_COLORS[checkResult.security_level]}>
+                          {checkResult.security_level}
+                        </Tag>
+                      </div>
+                    </Card>
+                  )}
+                </Space>
+              </TabPane>
+            </Tabs>
+          </Card>
+        </TabPane>
       </Tabs>
 
       <Modal
@@ -151,11 +515,7 @@ const PermissionMgr = () => {
         onOk={() => keywordForm.submit()}
       >
         <Form form={keywordForm} layout="vertical" onFinish={handleCreateKeyword}>
-          <Form.Item
-            name="keyword"
-            label="关键词"
-            rules={[{ required: true }]}
-          >
+          <Form.Item name="keyword" label="关键词" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
           <Form.Item name="level" label="敏感级别" initialValue="L1">

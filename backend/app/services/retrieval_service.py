@@ -167,6 +167,8 @@ class RetrievalService:
                 "max_keyword_level_value": chunk_level_value,
                 "tags": meta.get("tags", []),
                 "score": hit.get("score", 0),
+                "rerank_score": None,
+                "filtered": False,
             }
 
             # 关键词降级

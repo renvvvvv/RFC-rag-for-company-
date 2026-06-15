@@ -1,0 +1,14 @@
+# Trivy default scanning policy for CI/CD.
+# Applies to filesystem and container-image scans unless overridden.
+severity:
+  - HIGH
+  - CRITICAL
+
+ignorefile: .trivyignore
+exit-code: 0
+
+scan:
+  scanners:
+    - vuln
+    - secret
+    - misconfig

@@ -291,7 +291,20 @@ async def chat_stream(
             full_answer += token
             yield {"data": token}
 
-        # 流式结束后持久化消息
+        # 构造 sources 用于历史溯源
+        sources = [
+            {
+                "doc_id": c.get("doc_id"),
+                "chunk_id": c.get("chunk_id"),
+                "content": (c.get("content", "") or "")[:200],
+                "score": c.get("rerank_score") or c.get("score", 0),
+                "modality": c.get("modality", "text"),
+                "position_info": c.get("position_info") or {},
+            }
+            for c in chunks
+        ]
+
+        # 流式结束后持久化消息（保留 sources 用于历史溯源）
         if conversation_id:
             await conversation_service.add_message(
                 db=db,
@@ -305,7 +318,7 @@ async def chat_stream(
                 conversation_id=conversation_id,
                 role="assistant",
                 content=full_answer,
-                sources=[],
+                sources=sources,
             )
 
     return EventSourceResponse(event_generator())

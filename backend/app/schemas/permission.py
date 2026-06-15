@@ -1,6 +1,10 @@
-from typing import Optional, List, Dict, Any
+from datetime import datetime
+from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from pydantic import BaseModel
+
+PermissionTargetType = Literal["user", "group"]
+PermissionObjectType = Literal["file_type", "document", "field", "tag"]
 
 class FileTypePermissionCreate(BaseModel):
     target_type: str = "group"  # user/group/role
@@ -35,7 +39,52 @@ class TagPermissionCreate(BaseModel):
     allowed_tags: List[str] = []
     denied_tags: List[str] = []
 
+class PermissionGrantRequest(BaseModel):
+    target_type: PermissionTargetType
+    target_id: UUID
+    object_type: PermissionObjectType
+    object_id: Optional[UUID] = None
+    object_key: Optional[str] = None  # file_type string or field_path
+    permission: str = "READ"  # READ/WRITE/ADMIN/NONE/allow/deny
+    permissions: Optional[List[str]] = None  # for file_type
+    field_type: Optional[str] = None  # word_paragraph/excel_cell/excel_column/excel_sheet
+    config: Optional[Dict[str, Any]] = None  # extra config for field permissions
+
+class PermissionRevokeRequest(BaseModel):
+    target_type: PermissionTargetType
+    target_id: UUID
+    object_type: PermissionObjectType
+    object_id: Optional[UUID] = None
+    object_key: Optional[str] = None
+    permission: Optional[str] = None  # if None, revoke all matching permissions
+
+class PermissionListRequest(BaseModel):
+    target_type: PermissionTargetType
+    target_id: UUID
+    object_type: Optional[PermissionObjectType] = None
+
+class PermissionInfo(BaseModel):
+    id: UUID
+    target_type: str
+    target_id: UUID
+    object_type: str
+    object_id: Optional[str] = None
+    object_key: Optional[str] = None
+    permission: str
+    created_at: Optional[datetime] = None
+
+class PermissionListResponse(BaseModel):
+    target_type: str
+    target_id: UUID
+    permissions: List[PermissionInfo]
+
 class PermissionCheckResponse(BaseModel):
     doc_id: UUID
     permission: str  # NONE/READ/WRITE/ADMIN
+    security_level: str
+
+class ObjectPermissionCheckResponse(BaseModel):
+    object_type: str
+    object_id: str
+    permission: str
     security_level: str

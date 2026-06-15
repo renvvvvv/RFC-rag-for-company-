@@ -1,0 +1,15 @@
+.venv
+node_modules
+backend/.venv
+frontend/node_modules
+dist
+build
+.git
+.github
+__pycache__
+.pytest_cache
+.mypy_cache
+alembic
+frontend/dist
+*.min.js
+*.log

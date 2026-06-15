@@ -1,0 +1,14 @@
+# Bandit static-analysis configuration.
+# Severity / confidence thresholds are enforced in CI via:
+#   --severity-level medium --confidence-level medium
+exclude_dirs:
+  - tests
+  - .venv
+  - node_modules
+  - backend/.venv
+  - frontend/node_modules
+  - __pycache__
+  - .pytest_cache
+  - .mypy_cache
+
+skips: []

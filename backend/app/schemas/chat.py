@@ -11,6 +11,10 @@ class SourceItem(BaseModel):
     content: str
     score: float
     modality: str
+    position_info: Optional[Dict[str, Any]] = None
+    page: Optional[int] = None
+    sheet: Optional[str] = None
+    timestamp: Optional[str] = None
 
 
 class ChatRequest(BaseModel):

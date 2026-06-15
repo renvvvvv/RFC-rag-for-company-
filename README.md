@@ -54,6 +54,7 @@
 - [📡 API 网关](#-api-网关)
 - [🛡️ 权限模型](#️-权限模型)
 - [🔧 部署](#-部署)
+- [🛡️ 安全扫描](#️-安全扫描)
 - [📊 监控与可观测性](#-监控与可观测性)
 - [🤝 贡献](#-贡献)
 - [📄 许可证](#-许可证)
@@ -349,6 +350,58 @@ bash scripts/rollback.sh
 3. push 到 `main` 分支即可触发自动构建与蓝绿部署
 
 详细配置见：[docs/CI_CD_SETUP.md](docs/CI_CD_SETUP.md)
+
+---
+
+## 🛡️ 安全扫描
+
+CI/CD 流水线内置 DevSecOps 安全检查，覆盖 SAST、SCA、DAST、容器镜像扫描、SBOM 生成及提示词注入回归测试。
+
+### 扫描工具与阈值
+
+| 类型 | 工具 | 作用域 | 默认阈值 / 行为 |
+|------|------|--------|----------------|
+| SAST | **Ruff** | Python 后端 | 检出即失败（`output-format=github`） |
+| SAST | **Bandit** | Python 后端 | 中危及以上 / 中等信心度即失败 |
+| SAST | **Semgrep** | `backend/` | `--config=auto --error`，发现即失败 |
+| SAST | **CodeQL** | Python + JavaScript | 默认 `security-extended` 规则集 |
+| SCA | **pip-audit** | `backend/requirements.txt` | 发现依赖漏洞即失败 |
+| SCA | **Snyk** | `backend/requirements.txt` | 可选，需配置 `SNYK_TOKEN` |
+| SCA / Secret / Misconfig | **Trivy** | 全仓库文件系统 | `HIGH/CRITICAL`，**非阻塞**（可配置） |
+| 镜像扫描 | **Trivy** | 构建后的后端/前端镜像 | `HIGH/CRITICAL`，默认非阻塞 |
+| Secret | **TruffleHog** | 全仓库 | 仅报告已验证的泄露 |
+| DAST | **OWASP ZAP** |  staging 站点 | 可选，需配置 `STAGING_URL`；默认非阻塞 |
+| 提示词注入 | **自定义 Pytest** | `backend/tests/test_prompt_injection.py` | 发现注入模式即失败 |
+| SBOM | **Trivy** | 全仓库 | 生成 CycloneDX 格式 `sbom.json` |
+
+### 配置文件
+
+| 文件 | 说明 |
+|------|------|
+| [`bandit.yaml`](bandit.yaml) | Bandit 扫描范围与排除目录；阈值通过 CI 命令行控制 |
+| [`trivy.yaml`](trivy.yaml) | Trivy 严重级别（`HIGH/CRITICAL`）、忽略文件、扫描器类型 |
+| [`.trivyignore`](.trivyignore) | 已评审的可接受风险 CVE 列表 |
+| [`.semgrepignore`](.semgrepignore) | Semgrep 忽略目录（`.venv`、`node_modules` 等） |
+
+### 报告位置
+
+所有报告均以 GitHub Actions **Artifacts** 形式保留 30 天：
+
+| Artifact | 内容 |
+|----------|------|
+| `lint-test-reports` | `ruff-report.txt`、`bandit-report.json/txt`、`pytest-report.xml`、`eslint-report.txt`、`tsc-build.log` |
+| `security-scan-reports` | `pip-audit-report.json`、`snyk-report.json`、`semgrep-report.json`、`trivy-fs-report.json/sarif`、`pytest-prompt-injection-report.xml`、`sbom.json` |
+| `image-scan-reports` | `trivy-backend-report.json`、`trivy-frontend-report.json` |
+| `dast-reports` | OWASP ZAP 扫描报告（需 `STAGING_URL`） |
+| `security-reports` | `security-summary.md` 汇总上述所有报告的关键指标 |
+
+Trivy 文件系统扫描的 SARIF 结果会自动上传到 **GitHub Security → Code scanning alerts**。
+
+### 常用配置
+
+- **阻断容器镜像 HIGH/CRITICAL CVE**：将仓库级变量 `IMAGE_SCAN_FAIL_ON_SEVERITY` 设为 `"true"`。
+- **启用 Snyk**：在 GitHub Secrets 中设置 `SNYK_TOKEN`。
+- **启用 OWASP ZAP**：在 GitHub Secrets 中设置 `STAGING_URL`。
 
 ---
 

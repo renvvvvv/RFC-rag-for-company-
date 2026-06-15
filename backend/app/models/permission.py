@@ -164,6 +164,12 @@ class FieldPermission(Base):
         nullable=False,
         comment="拒绝访问的用户ID列表",
     )
+    config: Mapped[dict] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+        comment="字段权限细粒度配置：word_config / excel_config",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

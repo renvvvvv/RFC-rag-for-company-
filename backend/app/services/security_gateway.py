@@ -1,3 +1,4 @@
+import re
 from typing import Dict, Any
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +8,23 @@ from app.core.metrics import rag_permission_intercepts_total
 from app.pipelines.keyword_annotator import LEVEL_ORDER
 from app.services.keyword_service import KeywordService
 from app.services.permission_service import PermissionService
+
+
+# Common prompt-injection / jailbreak indicators used for lightweight detection.
+# These patterns are intentionally conservative to minimize false positives.
+PROMPT_INJECTION_PATTERNS = [
+    r"ignore\s+(?:the\s+)?(?:above\s+|previous\s+)?instructions?",
+    r"disregard\s+(?:the\s+)?(?:above\s+|previous\s+)?(?:system\s+)?prompt?",
+    r"you\s+are\s+now\s+(?:in\s+)?(?:.*\s+)?mode",
+    r"(?:do\s+anything\s+now|DAN)",
+    r"pretend\s+you\s+(?:are|have)",
+    r"act\s+as\s+.*\s+(?:no\s+restrictions?|unrestricted)",
+    r"new\s+instructions?:",
+    r"(?:system|developer|user)\s*:\s*",
+    r"jailbreak",
+    r"payload\s*:",
+]
+
 
 class SecurityGateway:
     """API安全网关：根据文档/查询敏感度决定调用策略"""
@@ -65,9 +83,20 @@ class SecurityGateway:
             "reason": reason
         }
     
+    def detect_prompt_injection(self, query: str) -> bool:
+        """Detect obvious prompt-injection / jailbreak attempts.
+
+        This is a static guard intended to catch common prefix-based attacks
+        before they reach the LLM.  It does not replace a dedicated input
+        classifier but provides a fast, auditable first line of defence.
+        """
+        if not query:
+            return False
+        text = query.lower()
+        return any(re.search(pattern, text) for pattern in PROMPT_INJECTION_PATTERNS)
+
     def mask_entities(self, text: str) -> str:
         """L3机密内容：对常见实体做脱敏"""
-        import re
         text = re.sub(r"1[3-9]\d{9}", "[PHONE]", text)
         text = re.sub(r"\d{17}[\dXx]", "[IDCARD]", text)
         text = re.sub(r"[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}", "[EMAIL]", text)

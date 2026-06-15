@@ -56,6 +56,8 @@ class KeywordService:
         await self.db.commit()
         await self.db.refresh(keyword)
         self._annotator = None  # invalidate cache
+        from app.services.generation_service import GenerationService
+        GenerationService.reset_stream_annotator()
         return keyword
 
     async def update_keyword(
@@ -72,6 +74,8 @@ class KeywordService:
         await self.db.commit()
         await self.db.refresh(keyword)
         self._annotator = None  # invalidate cache
+        from app.services.generation_service import GenerationService
+        GenerationService.reset_stream_annotator()
 
         # Re-evaluate chunks that previously referenced this keyword.
         await self.reannotate_chunks_for_keyword(keyword_id)
@@ -83,6 +87,8 @@ class KeywordService:
         await self.db.delete(keyword)
         await self.db.commit()
         self._annotator = None  # invalidate cache
+        from app.services.generation_service import GenerationService
+        GenerationService.reset_stream_annotator()
 
     async def list_keywords(
         self,

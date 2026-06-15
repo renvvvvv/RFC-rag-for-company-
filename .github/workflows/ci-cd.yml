@@ -16,6 +16,8 @@ env:
   BACKEND_IMAGE: ${{ secrets.BACKEND_IMAGE || 'your-dockerhub-username/rag-backend' }}
   FRONTEND_IMAGE: ${{ secrets.FRONTEND_IMAGE || 'your-dockerhub-username/rag-frontend' }}
   REPO_URL: https://github.com/renvvvvv/RFC-rag-for-company-.git
+  # Set to "true" to fail the pipeline when Trivy image scans find HIGH/CRITICAL CVEs.
+  IMAGE_SCAN_FAIL_ON_SEVERITY: "false"
 
 jobs:
   # =============================================================================
@@ -72,7 +74,18 @@ jobs:
       - name: Lint Python with Ruff
         id: ruff
         working-directory: backend
-        run: ruff check app --output-format=github >> $GITHUB_WORKSPACE/ruff-report.txt 2>&1 || EXIT_CODE=$?
+        run: |
+          ruff check app --output-format=github | tee $GITHUB_WORKSPACE/ruff-report.txt
+        continue-on-error: true
+
+      - name: SAST scan Python with Bandit
+        id: bandit
+        working-directory: backend
+        run: |
+          bandit -c $GITHUB_WORKSPACE/bandit.yaml -r app -f json -o $GITHUB_WORKSPACE/bandit-report.json --severity-level medium --confidence-level medium || EXIT_CODE=$?
+          bandit -c $GITHUB_WORKSPACE/bandit.yaml -r app -f txt -o $GITHUB_WORKSPACE/bandit-report.txt --severity-level medium --confidence-level medium || true
+          echo "bandit_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit ${EXIT_CODE:-0}
         continue-on-error: true
 
       - name: Run backend tests
@@ -126,10 +139,13 @@ jobs:
           name: lint-test-reports
           path: |
             ruff-report.txt
+            bandit-report.json
+            bandit-report.txt
             pytest-report.xml
             eslint-report.txt
             tsc-build.log
           retention-days: 30
+          if-no-files-found: ignore
 
       - name: Publish test summary
         if: always()
@@ -139,6 +155,7 @@ jobs:
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Ruff Lint | ${{ steps.ruff.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bandit SAST | ${{ steps.bandit.outcome }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Pytest | ${{ steps.pytest.outcome }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ESLint | ${{ steps.eslint.outcome }} |" >> $GITHUB_STEP_SUMMARY
           echo "| TypeScript Build | ${{ steps.tsc.outcome }} |" >> $GITHUB_STEP_SUMMARY
@@ -146,18 +163,22 @@ jobs:
           echo "Reports available as artifact: lint-test-reports" >> $GITHUB_STEP_SUMMARY
 
       - name: Fail if any check failed
-        if: steps.ruff.outcome == 'failure' || steps.pytest.outcome == 'failure' || steps.eslint.outcome == 'failure' || steps.tsc.outcome == 'failure'
+        if: steps.ruff.outcome == 'failure' || steps.bandit.outcome == 'failure' || steps.pytest.outcome == 'failure' || steps.eslint.outcome == 'failure' || steps.tsc.outcome == 'failure'
         run: |
           echo "One or more lint/test checks failed. See artifacts and job summary for details."
           exit 1
 
   # =============================================================================
-  # 阶段二：安全扫描
+  # 阶段二：安全扫描 (DevSecOps)
   # =============================================================================
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: lint-and-test
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
 
     steps:
       - name: Checkout code
@@ -167,18 +188,48 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
 
-      - name: Scan Python with Bandit
-        id: bandit
+      - name: Install backend dependencies
         working-directory: backend
         run: |
-          pip install bandit
-          bandit -r app -f json -o $GITHUB_WORKSPACE/bandit-report.json || true
-          bandit -r app -f txt -o $GITHUB_WORKSPACE/bandit-report.txt || EXIT_CODE=$?
-          echo "bandit_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          python -m pip install --upgrade pip
+          pip install pytest pytest-asyncio
+          pip install -r requirements.txt
+
+      # -------------------------- SCA: dependency vulnerabilities --------------------------
+      - name: SCA scan Python dependencies with pip-audit
+        id: pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt --format=json -o $GITHUB_WORKSPACE/pip-audit-report.json || EXIT_CODE=$?
+          pip-audit -r backend/requirements.txt --format=markdown -o $GITHUB_WORKSPACE/pip-audit-report.md || true
+          echo "pip_audit_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           exit ${EXIT_CODE:-0}
         continue-on-error: true
 
+      - name: SCA scan with Snyk (optional)
+        id: snyk
+        if: ${{ secrets.SNYK_TOKEN != '' }}
+        uses: snyk/actions/python@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --file=backend/requirements.txt --json-file-output=$GITHUB_WORKSPACE/snyk-report.json
+
+      # -------------------------- SAST --------------------------
+      - name: SAST scan with Semgrep
+        id: semgrep
+        run: |
+          pip install semgrep
+          semgrep --config=auto --error --json -o $GITHUB_WORKSPACE/semgrep-report.json backend || EXIT_CODE=$?
+          echo "semgrep_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit ${EXIT_CODE:-0}
+        continue-on-error: true
+
+      # -------------------------- Secret scanning --------------------------
       - name: Detect secrets with TruffleHog
         id: trufflehog
         uses: trufflesecurity/trufflehog@main
@@ -188,17 +239,54 @@ jobs:
           head: HEAD
           extra_args: --only-verified
 
-      - name: Scan repo with Trivy
-        id: trivy-fs
+      # -------------------------- Filesystem scan --------------------------
+      - name: Scan repo with Trivy (JSON)
+        id: trivy-fs-json
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: .
-          scanners: vuln,secret,misconfig
-          severity: HIGH,CRITICAL
-          exit-code: 0
+          trivy-config: trivy.yaml
+          format: json
           output: trivy-fs-report.json
+          exit-code: 0
 
+      - name: Scan repo with Trivy (SARIF)
+        id: trivy-fs-sarif
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          trivy-config: trivy.yaml
+          format: sarif
+          output: trivy-fs-report.sarif
+          exit-code: 0
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs-report.sarif
+          category: trivy-fs
+
+      # -------------------------- Prompt injection tests --------------------------
+      - name: Run prompt-injection regression tests
+        id: prompt-injection-tests
+        working-directory: backend
+        run: |
+          pytest tests/test_prompt_injection.py -q --junitxml=$GITHUB_WORKSPACE/pytest-prompt-injection-report.xml --tb=short || EXIT_CODE=$?
+          echo "prompt_injection_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit ${EXIT_CODE:-0}
+        continue-on-error: true
+
+      # -------------------------- SBOM generation --------------------------
+      - name: Generate CycloneDX SBOM with Trivy
+        id: trivy-sbom
+        run: |
+          trivy sbom --format cyclonedx -o $GITHUB_WORKSPACE/sbom.json .
+        continue-on-error: true
+
+      # -------------------------- 上传报告 --------------------------
       - name: Upload security scan reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -207,8 +295,16 @@ jobs:
           path: |
             bandit-report.json
             bandit-report.txt
+            pip-audit-report.json
+            pip-audit-report.md
+            snyk-report.json
+            semgrep-report.json
             trivy-fs-report.json
+            trivy-fs-report.sarif
+            pytest-prompt-injection-report.xml
+            sbom.json
           retention-days: 30
+          if-no-files-found: ignore
 
       - name: Publish security summary
         if: always()
@@ -217,23 +313,51 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Tool | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Bandit | ${{ steps.bandit.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| pip-audit | ${{ steps.pip-audit.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Snyk | ${{ steps.snyk.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Semgrep | ${{ steps.semgrep.outcome }} |" >> $GITHUB_STEP_SUMMARY
           echo "| TruffleHog | ${{ steps.trufflehog.outcome }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Trivy FS Scan | ${{ steps.trivy-fs.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy FS JSON | ${{ steps.trivy-fs-json.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy FS SARIF | ${{ steps.trivy-fs-sarif.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Prompt Injection Tests | ${{ steps.prompt-injection-tests.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy SBOM | ${{ steps.trivy-sbom.outcome }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Reports available as artifact: security-scan-reports" >> $GITHUB_STEP_SUMMARY
 
-      - name: Fail if Bandit found issues
-        if: steps.bandit.outcome == 'failure'
+      - name: Fail if SAST/SCA found issues
+        if: steps.pip-audit.outcome == 'failure' || steps.semgrep.outcome == 'failure' || steps.prompt-injection-tests.outcome == 'failure'
         run: |
-          echo "Bandit found security issues. See artifact: security-scan-reports"
+          echo "Security scan found blocking issues. See artifact: security-scan-reports"
           exit 1
 
-      - name: Fail if Trivy found HIGH/CRITICAL issues
-        if: steps.trivy-fs.outcome == 'failure'
-        run: |
-          echo "Trivy found HIGH/CRITICAL issues. See artifact: security-scan-reports"
-          exit 1
+  # =============================================================================
+  # CodeQL SAST analysis
+  # =============================================================================
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python, javascript
+          queries: security-extended,security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python-javascript"
 
   # =============================================================================
   # 阶段三：构建并推送 Docker 镜像
@@ -308,18 +432,22 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
-          severity: HIGH,CRITICAL
-          exit-code: 0
+          trivy-config: trivy.yaml
+          format: json
           output: trivy-backend-report.json
+          exit-code: ${{ env.IMAGE_SCAN_FAIL_ON_SEVERITY == 'true' && '1' || '0' }}
+        continue-on-error: ${{ env.IMAGE_SCAN_FAIL_ON_SEVERITY != 'true' }}
 
       - name: Scan frontend image with Trivy
         id: trivy-frontend
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
-          severity: HIGH,CRITICAL
-          exit-code: 0
+          trivy-config: trivy.yaml
+          format: json
           output: trivy-frontend-report.json
+          exit-code: ${{ env.IMAGE_SCAN_FAIL_ON_SEVERITY == 'true' && '1' || '0' }}
+        continue-on-error: ${{ env.IMAGE_SCAN_FAIL_ON_SEVERITY != 'true' }}
 
       - name: Upload image scan reports
         if: always()
@@ -340,8 +468,46 @@ jobs:
           echo "|-------|--------|------|" >> $GITHUB_STEP_SUMMARY
           echo "| Backend | ${{ steps.build-backend.outcome }} | ${{ steps.meta-backend.outputs.tags }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend | ${{ steps.build-frontend.outcome }} | ${{ steps.meta-frontend.outputs.tags }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy Backend Scan | ${{ steps.trivy-backend.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy Frontend Scan | ${{ steps.trivy-frontend.outcome }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Image scan reports available as artifact: image-scan-reports" >> $GITHUB_STEP_SUMMARY
+
+  # =============================================================================
+  # DAST: OWASP ZAP (optional, only when a staging URL is configured)
+  # =============================================================================
+  dast-scan:
+    name: DAST Scan (OWASP ZAP)
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: ${{ secrets.STAGING_URL != '' }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: OWASP ZAP Full Scan
+        id: zap
+        uses: zaproxy/action-full-scan@v0.12.0
+        continue-on-error: true
+        with:
+          target: ${{ secrets.STAGING_URL }}
+          allow_issue_writing: false
+          cmd_options: -J zap-report.json
+
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dast-reports
+          path: |
+            zap-report.json
+            report_*.html
+            report_*.xml
+          retention-days: 30
+          if-no-files-found: ignore
 
   # =============================================================================
   # 阶段四：蓝绿部署到服务器
@@ -482,3 +648,124 @@ jobs:
           echo "| Verify | ${{ steps.verify.outcome }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Deployment logs and diagnostics available as artifact: deployment-reports" >> $GITHUB_STEP_SUMMARY
+
+  # =============================================================================
+  # 阶段五：安全报告聚合
+  # =============================================================================
+  security-report:
+    name: Security Report Aggregation
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint-and-test, security-scan, build-and-push, codeql, dast-scan]
+
+    steps:
+      - name: Download all security-related artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-reports"
+          merge-multiple: true
+          path: reports
+
+      - name: Aggregate findings into Markdown summary
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          root = Path("reports")
+          summary_lines = ["# Security Scan Aggregate Report\n"]
+
+          def count_json_array(path):
+              if not path.exists():
+                  return None
+              try:
+                  data = json.loads(path.read_text(encoding="utf-8"))
+                  if isinstance(data, list):
+                      return len(data)
+                  if isinstance(data, dict):
+                      return len(data.get("results", []))
+              except Exception:
+                  return "parse error"
+              return None
+
+          def count_trivy(path):
+              if not path.exists():
+                  return None
+              try:
+                  data = json.loads(path.read_text(encoding="utf-8"))
+                  total = 0
+                  for r in data.get("Results", []):
+                      total += len(r.get("Vulnerabilities", []))
+                      total += len(r.get("Misconfigurations", []))
+                      total += len(r.get("Secrets", []))
+                  return total
+              except Exception:
+                  return "parse error"
+
+          def count_junit_failures(path):
+              if not path.exists():
+                  return None
+              try:
+                  tree = ET.parse(path)
+                  elem = tree.getroot()
+                  return int(elem.get("failures", 0)) + int(elem.get("errors", 0))
+              except Exception:
+                  return "parse error"
+
+          def file_size(path):
+              if not path.exists():
+                  return "N/A"
+              return f"{path.stat().st_size} bytes"
+
+          findings = [
+              ("Bandit (SAST)", count_json_array(root / "bandit-report.json")),
+              ("pip-audit (SCA)", count_json_array(root / "pip-audit-report.json")),
+              ("Semgrep (SAST)", count_json_array(root / "semgrep-report.json")),
+              ("Trivy filesystem", count_trivy(root / "trivy-fs-report.json")),
+              ("Trivy backend image", count_trivy(root / "trivy-backend-report.json")),
+              ("Trivy frontend image", count_trivy(root / "trivy-frontend-report.json")),
+              ("Prompt injection test failures", count_junit_failures(root / "pytest-prompt-injection-report.xml")),
+          ]
+
+          summary_lines.append("| Tool | Findings / Failures | Report file | Size |")
+          summary_lines.append("|------|---------------------|-------------|------|")
+          for name, count in findings:
+              filename = {
+                  "Bandit (SAST)": "bandit-report.json",
+                  "pip-audit (SCA)": "pip-audit-report.json",
+                  "Semgrep (SAST)": "semgrep-report.json",
+                  "Trivy filesystem": "trivy-fs-report.json",
+                  "Trivy backend image": "trivy-backend-report.json",
+                  "Trivy frontend image": "trivy-frontend-report.json",
+                  "Prompt injection test failures": "pytest-prompt-injection-report.xml",
+              }[name]
+              summary_lines.append(f"| {name} | {count if count is not None else 'N/A'} | {filename} | {file_size(root / filename)} |")
+
+          summary_lines.append("")
+          summary_lines.append("## Artifacts")
+          summary_lines.append("- `lint-test-reports` — Ruff, Bandit, Pytest, ESLint, TypeScript build logs")
+          summary_lines.append("- `security-scan-reports` — pip-audit, Snyk, Semgrep, Trivy FS (JSON/SARIF), prompt-injection tests, SBOM")
+          summary_lines.append("- `image-scan-reports` — Trivy backend/frontend image scans")
+          summary_lines.append("- `dast-reports` — OWASP ZAP report (when `STAGING_URL` is configured)")
+          summary_lines.append("- `security-reports` — this aggregate Markdown summary")
+
+          summary_text = "\n".join(summary_lines)
+          Path("security-summary.md").write_text(summary_text, encoding="utf-8")
+          print(summary_text)
+          PY
+
+      - name: Upload aggregate security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            security-summary.md
+          retention-days: 30
+
+      - name: Publish aggregate summary
+        if: always()
+        run: cat security-summary.md >> $GITHUB_STEP_SUMMARY

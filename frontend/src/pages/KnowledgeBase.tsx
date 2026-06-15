@@ -20,7 +20,7 @@ const KnowledgeBase = () => {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const res = await api.get('/v1/knowledge-bases')
+      const res = await api.get('/v1/knowledge-bases/')
       setData(res.data)
     } catch (e) {
       message.error('加载知识库失败')
@@ -35,7 +35,7 @@ const KnowledgeBase = () => {
 
   const handleCreate = async (values: { name: string; description: string }) => {
     try {
-      await api.post('/v1/knowledge-bases', values)
+      await api.post('/v1/knowledge-bases/', values)
       message.success('创建成功')
       setModalVisible(false)
       form.resetFields()
