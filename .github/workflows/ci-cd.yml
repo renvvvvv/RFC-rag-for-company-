@@ -15,6 +15,7 @@ env:
   REGISTRY: ${{ secrets.REGISTRY_URL || 'docker.io' }}
   BACKEND_IMAGE: ${{ secrets.BACKEND_IMAGE || 'your-dockerhub-username/rag-backend' }}
   FRONTEND_IMAGE: ${{ secrets.FRONTEND_IMAGE || 'your-dockerhub-username/rag-frontend' }}
+  REPO_URL: https://github.com/renvvvvv/RFC-rag-for-company-.git
 
 jobs:
   # =============================================================================
@@ -222,10 +223,10 @@ jobs:
           exit-code: 0
 
   # =============================================================================
-  # 阶段四：部署到服务器
+  # 阶段四：蓝绿部署到服务器
   # =============================================================================
   deploy:
-    name: Deploy to Server
+    name: Blue-Green Deploy
     runs-on: ubuntu-latest
     needs: build-and-push
     if: github.ref == 'refs/heads/main'
@@ -245,88 +246,53 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy to server
+      - name: Deploy to server (blue-green)
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USERNAME }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/rag-system' }}
+          DEPLOY_BASE_DIR: ${{ secrets.DEPLOY_PATH || '/opt/rag-system' }}
         run: |
           set -e
-          echo "==> Deploying to $SSH_HOST:$DEPLOY_PATH"
+          echo "==> Blue-green deploying to $SSH_HOST:$DEPLOY_BASE_DIR"
 
           ssh "$SSH_USER@$SSH_HOST" "
             set -e
-            DEPLOY_PATH='$DEPLOY_PATH'
-            REGISTRY='${{ env.REGISTRY }}'
-            REGISTRY_USERNAME='${{ secrets.REGISTRY_USERNAME }}'
-            REGISTRY_PASSWORD='${{ secrets.REGISTRY_PASSWORD }}'
+            export DEPLOY_BASE_DIR='$DEPLOY_BASE_DIR'
+            export REGISTRY_URL='${{ env.REGISTRY }}'
+            export REGISTRY_USERNAME='${{ secrets.REGISTRY_USERNAME }}'
+            export REGISTRY_PASSWORD='${{ secrets.REGISTRY_PASSWORD }}'
+            export BACKEND_IMAGE='${{ env.BACKEND_IMAGE }}'
+            export FRONTEND_IMAGE='${{ env.FRONTEND_IMAGE }}'
+            export IMAGE_TAG='${{ github.sha }}'
 
-            # 1. Ensure Docker is available (do NOT install system-wide software)
-            if ! command -v docker >/dev/null 2>&1; then
-              echo 'ERROR: Docker is not installed on the server.'
-              echo 'Please install Docker and Docker Compose manually, then re-run the workflow.'
-              exit 1
+            if [ ! -d \"\$DEPLOY_BASE_DIR/.git\" ]; then
+              echo \"Cloning repository into \$DEPLOY_BASE_DIR\"
+              git clone '${{ env.REPO_URL }}' \"\$DEPLOY_BASE_DIR\"
             fi
-            if ! docker compose version >/dev/null 2>&1; then
-              echo 'ERROR: Docker Compose plugin is not installed on the server.'
-              exit 1
-            fi
-
-            # 2. Prepare deployment directory
-            if [ ! -d \"\$DEPLOY_PATH/.git\" ]; then
-              echo \"Cloning repository into \$DEPLOY_PATH\"
-              git clone 'https://github.com/renvvvvv/RFC-rag-for-company-.git' \"\$DEPLOY_PATH\"
-            fi
-            cd \"\$DEPLOY_PATH\"
-
-            # 3. Pull latest code safely (never reset --hard to preserve local .env)
+            cd \"\$DEPLOY_BASE_DIR\"
             git stash push -m 'ci-cd-auto-stash' || true
             git pull origin main
             git stash pop || true
 
-            # 4. Protect existing .env; never overwrite it
-            if [ ! -f 'backend/.env' ]; then
-              echo 'backend/.env not found, creating from template.'
-              cp backend/.env.example backend/.env
-              echo 'WARNING: please edit backend/.env with real credentials before using the system.'
-            else
-              echo 'backend/.env exists, preserving it.'
-            fi
-
-            # 5. Record currently running images for rollback reference
-            echo 'Currently running images:'
-            docker compose ps --format 'table {{.Service}}\t{{.Image}}' || true
-            docker compose images > .last-deploy-images.txt || true
-
-            # 6. Login, pull and restart ONLY this project's services
-            echo \"\$REGISTRY_PASSWORD\" | docker login \"\$REGISTRY\" -u \"\$REGISTRY_USERNAME\" --password-stdin
-            docker compose pull
-            docker compose up -d
-            docker logout \"\$REGISTRY\" || true
-
-            echo 'Deployment complete'
+            bash scripts/blue-green-deploy.sh
           "
 
-      - name: Health check
+      - name: Verify active color
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USERNAME }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/rag-system' }}
+          DEPLOY_BASE_DIR: ${{ secrets.DEPLOY_PATH || '/opt/rag-system' }}
         run: |
           set -e
-          sleep 15
-          echo "==> Running health check"
-
+          echo "==> Verifying active deployment"
           ssh "$SSH_USER@$SSH_HOST" "
             set -e
-            DEPLOY_PATH='$DEPLOY_PATH'
-            cd \"\$DEPLOY_PATH\"
-
-            echo 'Service status:'
-            docker compose ps
-
-            echo 'Health endpoint:'
-            docker compose exec -T app-backend curl -fsS http://localhost:8080/api/v1/health
+            DEPLOY_BASE_DIR='$DEPLOY_BASE_DIR'
+            ACTIVE=\$(cat \"\$DEPLOY_BASE_DIR/.active-color\" 2>/dev/null || echo blue)
+            echo \"Active color: \$ACTIVE\"
+            cd \"\$DEPLOY_BASE_DIR-\$ACTIVE\"
+            docker compose -f docker-compose.app.yml ps
+            docker compose -f docker-compose.app.yml exec -T app-backend curl -fsS http://localhost:8080/api/v1/health
             echo ''
             echo 'Health check passed'
           "
@@ -336,18 +302,13 @@ jobs:
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USERNAME }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/rag-system' }}
+          DEPLOY_BASE_DIR: ${{ secrets.DEPLOY_PATH || '/opt/rag-system' }}
         run: |
-          echo "==> Deployment or health check failed. Gathering diagnostics..."
+          echo "==> Deployment failed, attempting rollback to previous color..."
           ssh "$SSH_USER@$SSH_HOST" "
-            DEPLOY_PATH='$DEPLOY_PATH'
-            cd \"\$DEPLOY_PATH\"
-            echo 'Container status:'
-            docker compose ps
-            echo 'Backend logs (last 100 lines):'
-            docker compose logs --tail=100 app-backend || true
-            echo 'Previous deployment images saved in .last-deploy-images.txt:'
-            cat .last-deploy-images.txt || echo 'No rollback snapshot found.'
-            echo 'To rollback manually, set IMAGE_TAG to the previous tag and run: docker compose up -d'
+            set -e
+            export DEPLOY_BASE_DIR='$DEPLOY_BASE_DIR'
+            cd \"\$DEPLOY_BASE_DIR\"
+            bash scripts/rollback.sh
           "
-          exit 1
+          echo "Rollback complete"

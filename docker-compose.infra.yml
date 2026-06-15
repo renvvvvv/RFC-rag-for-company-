@@ -1,0 +1,193 @@
+name: rag-infra
+
+services:
+  # ------------------------------------------------------------------
+  # Data stores
+  # ------------------------------------------------------------------
+  postgres:
+    image: postgres:16
+    container_name: rag-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rag_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rag_password}
+      POSTGRES_DB: ${POSTGRES_DB:-rag_kb}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rag_user} -d ${POSTGRES_DB:-rag_kb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rag-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ------------------------------------------------------------------
+  # Vector / object storage
+  # ------------------------------------------------------------------
+  etcd:
+    image: gcr.io/etcd-development/etcd:v3.5.5
+    container_name: rag-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    command:
+      - etcd
+      - --advertise-client-urls=http://127.0.0.1:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --data-dir=/etcd
+    volumes:
+      - etcd_data:/etcd
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  milvus:
+    image: milvusdb/milvus:v2.4.1
+    container_name: rag-milvus
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: ${ETCD_ENDPOINTS:-etcd:2379}
+      MINIO_ADDRESS: ${MINIO_ADDRESS:-minio:9000}
+    volumes:
+      - milvus_data:/var/lib/milvus
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    networks:
+      - rag-network
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  minio:
+    image: minio/minio:latest
+    container_name: rag-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: rag-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - rag-network
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin};
+      /usr/bin/mc mb myminio/${MINIO_BUCKET:-rag-documents} || true;
+      /usr/bin/mc policy set public myminio/${MINIO_BUCKET:-rag-documents} || true;
+      exit 0;
+      "
+
+  # ------------------------------------------------------------------
+  # Monitoring
+  # ------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: rag-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - rag-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: rag-grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - rag-network
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  etcd_data:
+  milvus_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  rag-network:
+    name: rag-network
+    driver: bridge
