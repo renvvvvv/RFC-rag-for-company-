@@ -9,7 +9,7 @@ class ExcelIngestPipeline(BaseIngestPipeline):
     
     @property
     def supported_types(self) -> List[str]:
-        return ["excel"]
+        return ["excel", "xlsx", "xls", "csv"]
     
     def process(
         self,

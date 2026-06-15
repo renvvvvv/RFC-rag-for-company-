@@ -152,9 +152,38 @@ class DocumentService:
             "pdf": "pdf",
             "xls": "excel", "xlsx": "excel", "csv": "excel",
             "jpg": "image", "jpeg": "image", "png": "image",
-            "gif": "image", "webp": "image",
+            "gif": "image", "webp": "image", "bmp": "image",
+            "tiff": "image", "tif": "image",
             "mp4": "video", "avi": "video", "mov": "video",
+            "mkv": "video", "webm": "video",
+            "mp3": "audio", "wav": "audio", "m4a": "audio", "ogg": "audio",
+            "flac": "audio", "aac": "audio", "wma": "audio",
             "txt": "document",
-            "link": "link"
+            "md": "document", "markdown": "document",
+            "html": "document", "htm": "document",
+            "json": "document",
+            "pptx": "document", "ppt": "document",
+            "link": "link",
         }
-        return type_map.get(ext, "unknown")
+        file_type = type_map.get(ext)
+        if file_type:
+            return file_type
+
+        # 按 MIME type 兜底
+        mime_map = {
+            "audio/mpeg": "audio", "audio/wav": "audio", "audio/x-wav": "audio",
+            "audio/mp4": "audio", "audio/ogg": "audio", "audio/flac": "audio",
+            "audio/aac": "audio", "audio/x-ms-wma": "audio",
+            "video/mp4": "video", "video/x-msvideo": "video", "video/quicktime": "video",
+            "video/x-matroska": "video", "video/webm": "video",
+            "image/jpeg": "image", "image/png": "image", "image/gif": "image",
+            "image/webp": "image", "image/bmp": "image", "image/tiff": "image",
+            "application/pdf": "pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "document",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation": "document",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "excel",
+            "application/vnd.ms-excel": "excel",
+            "text/plain": "document", "text/markdown": "document",
+            "text/html": "document", "application/json": "document",
+        }
+        return mime_map.get(content_type, "unknown")

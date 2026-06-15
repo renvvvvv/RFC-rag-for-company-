@@ -5,10 +5,23 @@ from app.schemas.document import (
     DocumentResponse,
     DocumentUpload,
 )
+from app.schemas.evaluation import (
+    EvaluationDatasetCreate,
+    EvaluationDatasetResponse,
+    EvaluationMetricsResponse,
+    EvaluationTaskCreate,
+    EvaluationTaskResponse,
+)
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
     KnowledgeBaseResponse,
     KnowledgeBaseUpdate,
+)
+from app.schemas.search import (
+    SearchRequest,
+    SearchResponse,
+    SearchHistoryItem,
+    SearchHistoryResponse,
 )
 from app.schemas.chat import (
     ChatRequest,
@@ -26,9 +39,18 @@ __all__ = [
     "DocumentListResponse",
     "DocumentResponse",
     "DocumentUpload",
+    "EvaluationDatasetCreate",
+    "EvaluationDatasetResponse",
+    "EvaluationMetricsResponse",
+    "EvaluationTaskCreate",
+    "EvaluationTaskResponse",
     "KnowledgeBaseCreate",
     "KnowledgeBaseResponse",
     "KnowledgeBaseUpdate",
+    "SearchRequest",
+    "SearchResponse",
+    "SearchHistoryItem",
+    "SearchHistoryResponse",
     "ChatRequest",
     "ChatResponse",
     "UserCreate",

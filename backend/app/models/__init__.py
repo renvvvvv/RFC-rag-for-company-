@@ -1,10 +1,13 @@
 """SQLAlchemy models package."""
 from app.models.audit import AuditLog
 from app.models.chunk import Chunk
+from app.models.conversation import Conversation
 from app.models.document import Document
+from app.models.evaluation import EvaluationDataset, EvaluationTask
 from app.models.group import UserGroup
 from app.models.keyword import KeywordMatchLog, SensitiveKeyword
 from app.models.knowledge_base import KnowledgeBase
+from app.models.message import Message
 from app.models.permission import (
     DocumentPermission,
     FieldPermission,
@@ -12,6 +15,7 @@ from app.models.permission import (
     GroupPermission,
     TagPermission,
 )
+from app.models.search_history import SearchHistory
 from app.models.system_config import SystemConfig
 from app.models.tag import Tag, chunk_tags, document_tags
 from app.models.user import User
@@ -20,16 +24,21 @@ __all__ = [
     "SystemConfig",
     "AuditLog",
     "Chunk",
+    "Conversation",
     "Document",
+    "EvaluationDataset",
+    "EvaluationTask",
     "UserGroup",
     "KeywordMatchLog",
     "SensitiveKeyword",
     "KnowledgeBase",
+    "Message",
     "DocumentPermission",
     "FieldPermission",
     "FileTypePermission",
     "GroupPermission",
     "TagPermission",
+    "SearchHistory",
     "Tag",
     "chunk_tags",
     "document_tags",

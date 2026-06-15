@@ -20,6 +20,7 @@ celery_app.conf.update(
 # Import task modules so Celery auto-discovers them.
 import app.workers.ingest_tasks  # noqa: E402,F401
 import app.workers.embed_tasks  # noqa: E402,F401
+import app.workers.eval_tasks  # noqa: E402,F401
 
 
 @celery_app.task(bind=True, ignore_result=True)

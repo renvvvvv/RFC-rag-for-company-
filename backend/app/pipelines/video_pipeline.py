@@ -8,7 +8,10 @@ class VideoIngestPipeline(BaseIngestPipeline):
     
     @property
     def supported_types(self) -> List[str]:
-        return ["video"]
+        return [
+            "video",
+            "mp4", "avi", "mov", "mkv", "webm",
+        ]
     
     def process(
         self,

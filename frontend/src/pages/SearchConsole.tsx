@@ -11,8 +11,16 @@ import {
   message,
   Checkbox,
   Spin,
+  Tooltip,
+  Popconfirm,
 } from 'antd'
-import { SendOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  LikeOutlined,
+  DislikeOutlined,
+  PlusOutlined,
+  SendOutlined,
+} from '@ant-design/icons'
 import api from '@/services/api'
 
 const { TextArea } = Input
@@ -33,6 +41,7 @@ interface Source {
 }
 
 interface ChatMessage {
+  id?: string
   role: 'user' | 'assistant'
   content: string
   sources?: Source[]
@@ -42,6 +51,16 @@ interface ChatMessage {
     max_level: number
     reason: string
   }
+  feedback_rating?: number
+  feedback_comment?: string
+}
+
+interface Conversation {
+  id: string
+  title: string
+  kb_ids: string[]
+  created_at: string
+  updated_at: string
 }
 
 const MODALITY_OPTIONS = [
@@ -58,6 +77,8 @@ const SearchConsole = () => {
   const [query, setQuery] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(false)
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -67,17 +88,109 @@ const SearchConsole = () => {
         setKbList(res.data)
       })
       .catch(() => message.error('加载知识库失败'))
+    loadConversations()
   }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  const loadConversations = async () => {
+    try {
+      const res = await api.get('/v1/chat/conversations')
+      setConversations(res.data)
+    } catch {
+      // 静默失败，避免阻塞主流程
+    }
+  }
+
+  const loadMessages = async (conversationId: string) => {
+    try {
+      const res = await api.get(`/v1/chat/conversations/${conversationId}/messages`)
+      const loaded: ChatMessage[] = res.data.map((m: any) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        sources: m.sources || [],
+        feedback_rating: m.feedback_rating,
+        feedback_comment: m.feedback_comment,
+      }))
+      setMessages(loaded)
+    } catch {
+      message.error('加载历史消息失败')
+    }
+  }
+
+  const createConversation = async (): Promise<Conversation | null> => {
+    if (selectedKbs.length === 0) {
+      message.warning('请至少选择一个知识库')
+      return null
+    }
+    try {
+      const res = await api.post('/v1/chat/conversations', {
+        title: query.trim() || '新会话',
+        kb_ids: selectedKbs,
+      })
+      const conversation: Conversation = res.data
+      setConversations((prev) => [conversation, ...prev])
+      setCurrentConversationId(conversation.id)
+      setMessages([])
+      return conversation
+    } catch {
+      message.error('创建会话失败')
+      return null
+    }
+  }
+
+  const selectConversation = (conversation: Conversation) => {
+    setCurrentConversationId(conversation.id)
+    setSelectedKbs(conversation.kb_ids || [])
+    loadMessages(conversation.id)
+  }
+
+  const deleteConversation = async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await api.delete(`/v1/chat/conversations/${conversationId}`)
+      setConversations((prev) => prev.filter((c) => c.id !== conversationId))
+      if (currentConversationId === conversationId) {
+        setCurrentConversationId(null)
+        setMessages([])
+      }
+    } catch {
+      message.error('删除会话失败')
+    }
+  }
+
+  const sendFeedback = async (messageId: string, rating: number) => {
+    try {
+      await api.post(`/v1/chat/messages/${messageId}/feedback`, {
+        rating,
+        comment: '',
+      })
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, feedback_rating: rating } : m
+        )
+      )
+      message.success('反馈已提交')
+    } catch {
+      message.error('提交反馈失败')
+    }
+  }
+
   const handleSend = async () => {
     if (!query.trim()) return
     if (selectedKbs.length === 0) {
       message.warning('请至少选择一个知识库')
       return
+    }
+
+    let conversationId = currentConversationId
+    if (!conversationId) {
+      const conversation = await createConversation()
+      if (!conversation) return
+      conversationId = conversation.id
     }
 
     const userMsg: ChatMessage = { role: 'user', content: query }
@@ -90,6 +203,7 @@ const SearchConsole = () => {
       const res = await api.post('/v1/chat', {
         query: currentQuery,
         kb_ids: selectedKbs,
+        conversation_id: conversationId,
         modalities,
         top_k: 10,
         rerank_top_k: 5,
@@ -105,6 +219,7 @@ const SearchConsole = () => {
           strategy: data.strategy,
         },
       ])
+      loadConversations()
     } catch (e) {
       message.error('请求失败')
       setMessages((prev) => [
@@ -121,6 +236,55 @@ const SearchConsole = () => {
 
   return (
     <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 180px)' }}>
+      <Card title="会话列表" style={{ width: 260, flexShrink: 0 }}>
+        <Button
+          type="dashed"
+          icon={<PlusOutlined />}
+          block
+          style={{ marginBottom: 12 }}
+          onClick={() => {
+            setCurrentConversationId(null)
+            setMessages([])
+          }}
+        >
+          新建会话
+        </Button>
+        <List
+          dataSource={conversations}
+          renderItem={(conv) => (
+            <List.Item
+              key={conv.id}
+              style={{
+                padding: '8px 4px',
+                cursor: 'pointer',
+                background: currentConversationId === conv.id ? '#e6f4ff' : 'transparent',
+                borderRadius: 4,
+              }}
+              onClick={() => selectConversation(conv)}
+              actions={[
+                <Popconfirm
+                  key="delete"
+                  title="确定删除该会话？"
+                  onConfirm={(e) => deleteConversation(conv.id, e as any)}
+                >
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </Popconfirm>,
+              ]}
+            >
+              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {conv.title}
+              </div>
+            </List.Item>
+          )}
+        />
+      </Card>
+
       <Card title="检索配置" style={{ width: 320, flexShrink: 0 }}>
         <Space direction="vertical" style={{ width: '100%' }}>
           <div>
@@ -199,6 +363,32 @@ const SearchConsole = () => {
                           {s.modality} [{s.score.toFixed(2)}]
                         </Tag>
                       ))}
+                    </div>
+                  )}
+                  {msg.role === 'assistant' && msg.id && (
+                    <div style={{ marginTop: 8, textAlign: 'right' }}>
+                      <Tooltip title="有帮助">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<LikeOutlined />}
+                          style={{
+                            color: msg.feedback_rating === 1 ? '#52c41a' : undefined,
+                          }}
+                          onClick={() => sendFeedback(msg.id!, 1)}
+                        />
+                      </Tooltip>
+                      <Tooltip title="没有帮助">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<DislikeOutlined />}
+                          style={{
+                            color: msg.feedback_rating === -1 ? '#ff4d4f' : undefined,
+                          }}
+                          onClick={() => sendFeedback(msg.id!, -1)}
+                        />
+                      </Tooltip>
                     </div>
                   )}
                 </div>

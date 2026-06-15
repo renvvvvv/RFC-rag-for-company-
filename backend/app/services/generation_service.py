@@ -23,14 +23,19 @@ class GenerationService:
         query: str,
         context_chunks: List[Dict[str, Any]],
         user_id: UUID,
-        stream: bool = False
+        stream: bool = False,
+        history: Optional[List[Dict[str, str]]] = None
     ) -> Any:
         """生成回答"""
         context_text = self._build_context(context_chunks)
         messages = [
             {"role": "system", "content": self.SYSTEM_PROMPT},
-            {"role": "user", "content": f"上下文：\n{context_text}\n\n问题：{query}"}
         ]
+        if history:
+            messages.extend(history)
+        messages.append(
+            {"role": "user", "content": f"上下文：\n{context_text}\n\n问题：{query}"}
+        )
         
         if stream:
             return self._stream_with_intercept(messages, context_chunks, user_id)
