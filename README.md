@@ -77,31 +77,98 @@
 
 ## 🏗️ 系统架构
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                        用户访问层                             │
-│            React 前端 (http://localhost:3002)                │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-┌───────────────────────▼─────────────────────────────────────┐
-│                      Kong API 网关                           │
-│         /api → FastAPI    / → 前端    rate-limiting          │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-┌───────────────────────▼─────────────────────────────────────┐
-│                    FastAPI 后端服务                          │
-│  文档摄取 · 检索 · 生成 · 权限 · 关键词 · 模型配置 · 审计        │
-└───────┬───────────────────────────────┬─────────────────────┘
-        │                               │
-┌───────▼───────┐  ┌──────────────▼────────────┐  ┌───────────▼────────┐
-│   PostgreSQL  │  │         Redis              │  │     RabbitMQ       │
-│   业务数据     │  │        缓存 / 锁           │  │   Celery 任务队列   │
-└───────────────┘  └────────────────────────────┘  └────────────────────┘
-        │                               │
-┌───────▼───────┐  ┌────────────────────▼───────┐
-│    Milvus     │  │          MinIO              │
-│   向量数据库   │  │      对象存储 / 文件          │
-└───────────────┘  └─────────────────────────────┘
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e1f5fe', 'primaryTextColor': '#01579b', 'primaryBorderColor': '#0288d1', 'lineColor': '#0288d1', 'secondaryColor': '#fff3e0', 'tertiaryColor': '#e8f5e9'}}}%%
+
+graph TB
+    subgraph Users["👤 用户"]
+        Browser["Web 浏览器"]
+    end
+
+    subgraph Gateway["🚪 API 网关"]
+        Kong["Kong<br/>限流 / 路由"]
+    end
+
+    subgraph Frontend["🎨 前端"]
+        React["React + Ant Design"]
+    end
+
+    subgraph Backend["⚙️ FastAPI 后端"]
+        Auth["认证服务"]
+        Ingest["文档摄取 Pipeline"]
+        Retrieval["检索引擎"]
+        Generation["生成服务"]
+        Permission["权限服务"]
+        Keyword["关键词服务"]
+        Config["模型配置"]
+        Audit["审计日志"]
+    end
+
+    subgraph Workers["🛠️ Celery Workers"]
+        IngestWorker["ingest-worker"]
+        EmbedWorker["embed-worker"]
+        PermissionWorker["permission-sync-worker"]
+    end
+
+    subgraph Storage["💾 存储"]
+        Postgres[("PostgreSQL<br/>业务数据")]
+        Redis[("Redis<br/>缓存 / 锁")]
+        RabbitMQ[("RabbitMQ<br/>任务队列")]
+        Milvus[("Milvus<br/>向量库")]
+        MinIO[("MinIO<br/>对象存储")]
+    end
+
+    subgraph Monitoring["📊 监控"]
+        Prometheus["Prometheus"]
+        Grafana["Grafana"]
+    end
+
+    Browser -->|HTTP| Kong
+    Kong -->|/| React
+    Kong -->|/api| Auth
+    Kong --> Ingest
+    Kong --> Retrieval
+    Kong --> Generation
+    Kong --> Permission
+    Kong --> Keyword
+    Kong --> Config
+    Kong --> Audit
+
+    React -->|API 调用| Kong
+
+    Ingest -->|入队| RabbitMQ
+    RabbitMQ --> IngestWorker
+    RabbitMQ --> EmbedWorker
+    RabbitMQ --> PermissionWorker
+
+    IngestWorker --> Postgres
+    IngestWorker --> Milvus
+    IngestWorker --> MinIO
+    EmbedWorker --> Milvus
+    PermissionWorker --> Postgres
+
+    Auth --> Postgres
+    Auth --> Redis
+
+    Retrieval --> Milvus
+    Retrieval --> Postgres
+    Retrieval --> Redis
+    Retrieval --> Permission
+    Retrieval --> Keyword
+
+    Generation --> Keyword
+    Generation --> Audit
+
+    Permission --> Postgres
+    Permission --> Redis
+
+    Keyword --> Postgres
+    Config --> Postgres
+    Audit --> Postgres
+
+    Kong --> Prometheus
+    Backend --> Prometheus
+    Prometheus --> Grafana
 ```
 
 ---

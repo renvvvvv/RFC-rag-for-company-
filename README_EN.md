@@ -58,36 +58,105 @@
 
 ---
 
-## 🏗️ Architecture
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                        User Layer                           │
-│            React Frontend (http://localhost:3002)          │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-┌───────────────────────▼─────────────────────────────────────┐
-│                      Kong API Gateway                        │
-│         /api → FastAPI    / → Frontend    rate-limiting     │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-┌───────────────────────▼─────────────────────────────────────┐
-│                    FastAPI Backend Services                  │
-│  Ingestion · Retrieval · Generation · Permission · Audit     │
-└───────┬───────────────────────────────┬─────────────────────┘
-        │                               │
-┌───────▼───────┐  ┌──────────────▼────────────┐  ┌───────────▼────────┐
-│   PostgreSQL  │  │         Redis              │  │     RabbitMQ       │
-│ Business Data │  │     Cache / Locks          │  │   Celery Task Queue │
-└───────────────┘  └────────────────────────────┘  └────────────────────┘
-        │                               │
-┌───────▼───────┐  ┌────────────────────▼───────┐
-│    Milvus     │  │          MinIO              │
-│ Vector Store  │  │    Object Storage / Files   │
-└───────────────┘  └─────────────────────────────┘
-```
 
 ---
+
+## 🏗️ Architecture
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e1f5fe', 'primaryTextColor': '#01579b', 'primaryBorderColor': '#0288d1', 'lineColor': '#0288d1', 'secondaryColor': '#fff3e0', 'tertiaryColor': '#e8f5e9'}}}%%
+
+graph TB
+    subgraph Users["👤 Users"]
+        Browser["Web Browser"]
+    end
+
+    subgraph Gateway["🚪 API Gateway"]
+        Kong["Kong<br/>rate-limiting / routing"]
+    end
+
+    subgraph Frontend["🎨 Frontend"]
+        React["React + Ant Design"]
+    end
+
+    subgraph Backend["⚙️ FastAPI Backend"]
+        Auth["Auth Service"]
+        Ingest["Ingestion Pipeline"]
+        Retrieval["Retrieval Engine"]
+        Generation["Generation Service"]
+        Permission["Permission Service"]
+        Keyword["Keyword Service"]
+        Config["Model Config"]
+        Audit["Audit Log"]
+    end
+
+    subgraph Workers["🛠️ Celery Workers"]
+        IngestWorker["ingest-worker"]
+        EmbedWorker["embed-worker"]
+        PermissionWorker["permission-sync-worker"]
+    end
+
+    subgraph Storage["💾 Storage"]
+        Postgres[("PostgreSQL<br/>business data")]
+        Redis[("Redis<br/>cache / lock")]
+        RabbitMQ[("RabbitMQ<br/>task queue")]
+        Milvus[("Milvus<br/>vector store")]
+        MinIO[("MinIO<br/>object storage")]
+    end
+
+    subgraph Monitoring["📊 Monitoring"]
+        Prometheus["Prometheus"]
+        Grafana["Grafana"]
+    end
+
+    Browser -->|HTTP| Kong
+    Kong -->|/| React
+    Kong -->|/api| Auth
+    Kong --> Ingest
+    Kong --> Retrieval
+    Kong --> Generation
+    Kong --> Permission
+    Kong --> Keyword
+    Kong --> Config
+    Kong --> Audit
+
+    React -->|API calls| Kong
+
+    Ingest -->|enqueue| RabbitMQ
+    RabbitMQ --> IngestWorker
+    RabbitMQ --> EmbedWorker
+    RabbitMQ --> PermissionWorker
+
+    IngestWorker --> Postgres
+    IngestWorker --> Milvus
+    IngestWorker --> MinIO
+    EmbedWorker --> Milvus
+    PermissionWorker --> Postgres
+
+    Auth --> Postgres
+    Auth --> Redis
+
+    Retrieval --> Milvus
+    Retrieval --> Postgres
+    Retrieval --> Redis
+    Retrieval --> Permission
+    Retrieval --> Keyword
+
+    Generation --> Keyword
+    Generation --> Audit
+
+    Permission --> Postgres
+    Permission --> Redis
+
+    Keyword --> Postgres
+    Config --> Postgres
+    Audit --> Postgres
+
+    Kong --> Prometheus
+    Backend --> Prometheus
+    Prometheus --> Grafana
+```
 
 ## 🚀 Quick Start
 
