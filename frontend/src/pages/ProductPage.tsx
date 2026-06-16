@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Typography,
   Card,
@@ -24,94 +24,169 @@ import {
   TeamOutlined,
   KeyOutlined,
   GlobalOutlined,
+  ArrowRightOutlined,
+  DatabaseOutlined,
+  BranchesOutlined,
+  EyeOutlined,
+  MessageOutlined,
 } from '@ant-design/icons'
 
 const { Title, Paragraph, Text } = Typography
 const { Step } = Steps
 const { Panel } = Collapse
 
+const brandColor = '#1a1a1a'
+const accentColor = '#e57035'
+const mutedColor = '#6b7280'
+const surfaceColor = '#fafafa'
+
+interface AnimatedSectionProps {
+  children: React.ReactNode
+  delay?: number
+}
+
+const AnimatedSection: React.FC<AnimatedSectionProps> = ({ children, delay = 0 }) => {
+  const ref = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => setVisible(true), delay)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.1 }
+    )
+    if (ref.current) observer.observe(ref.current)
+    return () => observer.disconnect()
+  }, [delay])
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(24px)',
+        transition: 'opacity 600ms cubic-bezier(0.16, 1, 0.3, 1), transform 600ms cubic-bezier(0.16, 1, 0.3, 1)',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
 const painPoints = [
   {
-    title: '数据孤岛与知识分散',
-    desc: '企业文档、图纸、音视频、数据库记录分散在多个业务系统中，传统搜索无法跨模态、跨系统统一检索，导致员工找不到、找不准所需知识。',
-    icon: <SearchOutlined style={{ fontSize: 28, color: '#1677ff' }} />,
+    title: '数据孤岛',
+    subtitle: '知识分散在多个系统',
+    desc: '文档、图纸、音视频、数据库记录分散在多个业务系统中，传统搜索无法跨模态、跨系统统一检索。',
+    icon: <SearchOutlined style={{ fontSize: 24, color: accentColor }} />,
   },
   {
-    title: '私有化部署与数据安全',
-    desc: '金融、制造、政务等行业对数据出境和云端 SaaS 有严格限制，需要可私有化部署、数据不出域的 RAG 方案，同时满足审计与合规要求。',
-    icon: <SafetyOutlined style={{ fontSize: 28, color: '#52c41a' }} />,
+    title: '安全合规',
+    subtitle: '数据不出域的刚需',
+    desc: '金融、制造、政务等行业对数据出境和云端 SaaS 有严格限制，需要可私有化部署、满足审计与合规的 RAG 方案。',
+    icon: <SafetyOutlined style={{ fontSize: 24, color: accentColor }} />,
   },
   {
-    title: '细粒度权限管控缺失',
-    desc: '通用 RAG 往往忽略企业已有 ACL，出现低权限用户检索到高密级内容、不同部门看到不该看的文档等安全隐患。',
-    icon: <LockOutlined style={{ fontSize: 28, color: '#faad14' }} />,
+    title: '权限失控',
+    subtitle: '通用 RAG 的安全短板',
+    desc: '通用 RAG 往往忽略企业已有 ACL，导致低权限用户检索到高密级内容，不同部门越权访问。',
+    icon: <LockOutlined style={{ fontSize: 24, color: accentColor }} />,
   },
   {
-    title: '多模态内容理解困难',
-    desc: '合同、报表、设计图、培训视频等非结构化数据难以被 LLM 直接理解，需要统一的多模态解析、 embedding、索引与检索能力。',
-    icon: <FileTextOutlined style={{ fontSize: 28, color: '#722ed1' }} />,
+    title: '多模态理解',
+    subtitle: '非结构化数据难以利用',
+    desc: '合同、报表、设计图、培训视频等难以被 LLM 直接理解，需要统一的多模态解析、索引与检索能力。',
+    icon: <FileTextOutlined style={{ fontSize: 24, color: accentColor }} />,
   },
   {
-    title: '外部系统集成复杂',
-    desc: '企业 OA、IM、ERP、BI 等系统希望调用 RAG 能力，但缺乏标准、安全、可审计的 API 接入方案，导致重复开发和对接成本高昂。',
-    icon: <ApiOutlined style={{ fontSize: 28, color: '#eb2f96' }} />,
+    title: '集成困难',
+    subtitle: '外部系统调用成本高',
+    desc: 'OA、IM、ERP、BI 等系统希望调用 RAG 能力，但缺乏标准、安全、可审计的 API 接入方案。',
+    icon: <ApiOutlined style={{ fontSize: 24, color: accentColor }} />,
+  },
+  {
+    title: '来源不可信',
+    subtitle: '生成结果无法验证',
+    desc: '大模型幻觉导致答案不可信，企业需要每一条回答都能追溯到原始文档和具体片段。',
+    icon: <BranchesOutlined style={{ fontSize: 24, color: accentColor }} />,
   },
 ]
 
 const permissionLayers = [
   {
     title: '身份层',
-    items: ['用户 / 用户组管理', 'JWT 登录与令牌刷新', '部门、职级、安全等级属性'],
+    desc: '用户 / 用户组 / 部门 / 安全等级',
+    items: ['JWT 登录与令牌刷新', '按职级与部门属性过滤'],
+    icon: <TeamOutlined />,
   },
   {
     title: '知识库层',
-    items: ['知识库可见性控制', '按用户组授权读写', '目录级访问策略'],
+    desc: '知识库级可见性',
+    items: ['知识库可见性控制', '按用户组授权读写'],
+    icon: <DatabaseOutlined />,
   },
   {
     title: '文档层',
-    items: ['文档级 ACL（允许/拒绝列表）', '按用户/用户组授权', '密级标签匹配'],
+    desc: '文档级 ACL',
+    items: ['允许/拒绝列表', '按用户/用户组授权'],
+    icon: <FileTextOutlined />,
   },
   {
-    title: '字段/文件类型层',
-    items: ['按文件类型（Word/Excel/PDF）授权', '按字段配置（如 salary、id_card）脱敏或拒绝'],
+    title: '字段层',
+    desc: '敏感字段与文件类型',
+    items: ['按文件类型授权', '敏感字段脱敏或拒绝'],
+    icon: <EyeOutlined />,
   },
   {
     title: '标签层',
-    items: ['多维度标签（密级、部门、项目）', '标签批量授权与回收', '检索时动态过滤'],
+    desc: '多维度动态标签',
+    items: ['密级 / 部门 / 项目标签', '批量授权与回收'],
+    icon: <Tag color="transparent">TAG</Tag>,
   },
 ]
 
 const ragSteps = [
-  { title: '多模态接入', desc: '支持 Word、Excel、PPT、PDF、图片、音视频、网页链接等统一上传' },
-  { title: '解析与分块', desc: 'OCR、ASR、表格提取、文档结构解析，生成文本/图像/音频 Chunk' },
-  { title: '向量化索引', desc: '多模态 Embedding 模型生成稠密向量，写入 Milvus 向量数据库' },
-  { title: '混合检索', desc: '向量相似度 + BM25 + 重排序（Rerank），召回高相关片段' },
-  { title: '权限过滤', desc: '检索结果经统一权限服务过滤，确保用户只能看到授权内容' },
-  { title: 'LLM 生成', desc: '带引用溯源的生成，支持流式输出与敏感词拦截' },
+  { title: '多模态接入', desc: '文档、图片、音视频、链接统一接入' },
+  { title: '智能解析', desc: 'OCR、ASR、表格与结构提取' },
+  { title: '向量化索引', desc: '多模态 Embedding 写入 Milvus' },
+  { title: '混合检索', desc: '向量 + BM25 + Rerank 召回' },
+  { title: '权限过滤', desc: '五级权限实时过滤结果' },
+  { title: '可信生成', desc: '带引用溯源的流式回答' },
 ]
 
 const externalAuthTabs = [
   {
     key: 'kong',
-    label: 'Kong 网关接入',
+    label: 'Kong 网关',
     icon: <GlobalOutlined />,
     content: (
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <Paragraph>
-          系统使用 Kong 作为统一入口，所有外部流量先经过 Kong 再路由到前端或后端服务。
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Paragraph style={{ fontSize: 16, color: '#374151' }}>
+          所有外部流量先经过 Kong 统一入口，再路由到前端或后端服务。Kong 负责限流、日志、监控，并可按需开启认证插件。
         </Paragraph>
-        <Descriptions bordered column={1} size="small">
-          <Descriptions.Item label="代理端口">8000（HTTP）/ 8443（HTTPS）</Descriptions.Item>
+        <Descriptions
+          bordered
+          column={{ xs: 1, md: 2 }}
+          size="middle"
+          labelStyle={{ background: '#f9fafb', fontWeight: 500 }}
+        >
+          <Descriptions.Item label="代理端口">8000 / 8443</Descriptions.Item>
           <Descriptions.Item label="管理端口">8001 / 8444</Descriptions.Item>
           <Descriptions.Item label="后端路由">/api → app-backend:8080</Descriptions.Item>
           <Descriptions.Item label="前端路由">/ → frontend:80</Descriptions.Item>
-          <Descriptions.Item label="当前限流">100 请求/分钟（local 策略）</Descriptions.Item>
+          <Descriptions.Item label="当前限流">100 请求/分钟</Descriptions.Item>
+          <Descriptions.Item label="可扩展插件">key-auth / jwt / cors</Descriptions.Item>
         </Descriptions>
         <Alert
           message="生产建议"
-          description="生产环境可在 Kong 开启 key-auth、openid-connect 或 jwt 插件，统一校验调用方身份，并在网关层统一配置 CORS、限流、日志和监控。"
+          description="生产环境建议在 Kong 开启 key-auth 或 openid-connect，统一校验调用方身份，并在网关层统一配置 CORS、限流和审计日志。"
           type="info"
           showIcon
+          style={{ background: '#eff6ff', borderColor: '#bfdbfe' }}
         />
       </Space>
     ),
@@ -121,52 +196,90 @@ const externalAuthTabs = [
     label: 'JWT 认证',
     icon: <KeyOutlined />,
     content: (
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <Paragraph>
-          后端基于 FastAPI OAuth2 Password Bearer 实现 JWT 认证。外部系统调用 API 时，
-          先通过 <Text code>/api/v1/auth/login</Text> 获取 access_token，然后在请求头中携带：
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Paragraph style={{ fontSize: 16, color: '#374151' }}>
+          后端基于 FastAPI OAuth2 Password Bearer 实现 JWT 认证。外部系统先登录获取 token，后续请求在 Header 中携带。
         </Paragraph>
-        <pre style={{ background: '#f6ffed', padding: 12, borderRadius: 4 }}>
+        <pre
+          style={{
+            background: '#1a1a1a',
+            color: '#f3f4f6',
+            padding: 16,
+            borderRadius: 8,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            fontSize: 14,
+            overflow: 'auto',
+          }}
+        >
 {`Authorization: Bearer <access_token>`}
         </pre>
-        <Descriptions bordered column={1} size="small">
+        <Descriptions
+          bordered
+          column={{ xs: 1, md: 2 }}
+          size="middle"
+          labelStyle={{ background: '#f9fafb', fontWeight: 500 }}
+        >
           <Descriptions.Item label="算法">HS256</Descriptions.Item>
           <Descriptions.Item label="Token 有效期">30 分钟（可配置）</Descriptions.Item>
-          <Descriptions.Item label="Token 载体">user_id、username、security_level</Descriptions.Item>
+          <Descriptions.Item label="Token 载体">user_id / username / security_level</Descriptions.Item>
+          <Descriptions.Item label="刷新机制">access_token + refresh_token</Descriptions.Item>
         </Descriptions>
       </Space>
     ),
   },
   {
     key: 'apikey',
-    label: 'API Key 方案',
+    label: 'API Key',
     icon: <ApiOutlined />,
     content: (
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <Paragraph>
-          针对服务器间调用，Kong 已预留 key-auth 配置（当前 demo 环境未启用）。启用后，
-          每个外部系统分配独立 API Key，在请求头中携带：
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Paragraph style={{ fontSize: 16, color: '#374151' }}>
+          针对服务器间调用，Kong 已预留 key-auth 配置。每个外部系统分配独立 API Key，在请求头中携带即可。
         </Paragraph>
-        <pre style={{ background: '#fff2e8', padding: 12, borderRadius: 4 }}>
+        <pre
+          style={{
+            background: '#1a1a1a',
+            color: '#f3f4f6',
+            padding: 16,
+            borderRadius: 8,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            fontSize: 14,
+            overflow: 'auto',
+          }}
+        >
 {`api-key: <your-api-key>`}
         </pre>
         <Alert
           message="与 JWT 的互补关系"
-          description="API Key 适合系统间无会话调用，JWT 适合用户级有状态调用。两者可在 Kong 分层组合使用。"
+          description="API Key 适合系统间无会话调用；JWT 适合用户级有状态调用。两者可在 Kong 分层组合使用。"
           type="warning"
           showIcon
+          style={{ background: '#fffbeb', borderColor: '#fcd34d' }}
         />
       </Space>
     ),
   },
   {
     key: 'call',
-    label: '典型调用示例',
+    label: '调用示例',
     icon: <CloudServerOutlined />,
     content: (
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <Paragraph>以下示例展示外部系统如何通过 Kong 调用检索接口：</Paragraph>
-        <pre style={{ background: '#f0f2f5', padding: 12, borderRadius: 4, overflow: 'auto' }}>
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Paragraph style={{ fontSize: 16, color: '#374151' }}>
+          以下示例展示外部系统如何通过 Kong 网关完成登录并调用检索接口。
+        </Paragraph>
+        <pre
+          style={{
+            background: '#1a1a1a',
+            color: '#f3f4f6',
+            padding: 16,
+            borderRadius: 8,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            fontSize: 13,
+            overflow: 'auto',
+            lineHeight: 1.7,
+          }}
+        >
 {`# 1. 登录获取 token
 curl -X POST http://localhost:8000/api/v1/auth/login \\
   -d "username=admin&password=admin"
@@ -191,141 +304,312 @@ const ProductPage = () => {
   const [activeAuthTab, setActiveAuthTab] = useState('kong')
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+    <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}>
       {/* Hero */}
-      <Card bordered={false} style={{ background: 'linear-gradient(135deg, #1677ff 0%, #0050b3 100%)' }}>
-        <Title level={2} style={{ color: '#fff', marginBottom: 12 }}>
-          企业级私有化多模态 RAG 平台
-        </Title>
-        <Paragraph style={{ color: 'rgba(255,255,255,0.9)', fontSize: 16, maxWidth: 800 }}>
-          面向金融、制造、政务、能源等行业，提供数据不出域、权限可管控、来源可追溯、多模态可理解的
-          企业知识检索与生成平台，让大模型真正安全地服务企业私有知识。
-        </Paragraph>
-        <Button type="primary" ghost style={{ marginTop: 8, borderColor: '#fff', color: '#fff' }}>
-          查看系统文档
-        </Button>
-      </Card>
+      <AnimatedSection>
+        <div
+          style={{
+            position: 'relative',
+            padding: '80px 0 64px',
+            margin: '-24px -24px 48px',
+            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: '-20%',
+              right: '-10%',
+              width: 500,
+              height: 500,
+              background: 'radial-gradient(circle, rgba(229,112,53,0.25) 0%, transparent 70%)',
+              borderRadius: '50%',
+              filter: 'blur(60px)',
+            }}
+          />
+          <div style={{ position: 'relative', zIndex: 1, maxWidth: 880, padding: '0 24px' }}>
+            <Title level={1} style={{ color: '#fff', marginBottom: 20, fontSize: 48, fontWeight: 600, letterSpacing: '-0.02em' }}>
+              让企业知识
+              <br />
+              <span style={{ color: accentColor }}>安全、可信、可溯源</span>
+            </Title>
+            <Paragraph style={{ color: 'rgba(255,255,255,0.75)', fontSize: 18, lineHeight: 1.7, maxWidth: 680, marginBottom: 32 }}>
+              面向金融、制造、政务、能源等行业，提供数据不出域、权限可管控、来源可追溯、多模态可理解的企业知识检索与生成平台。
+            </Paragraph>
+            <Space size="middle">
+              <Button
+                type="primary"
+                size="large"
+                icon={<ArrowRightOutlined />}
+                style={{ background: accentColor, borderColor: accentColor, borderRadius: 6 }}
+                onClick={() => document.getElementById('rag-architecture')?.scrollIntoView({ behavior: 'smooth' })}
+              >
+                了解架构
+              </Button>
+              <Button
+                ghost
+                size="large"
+                style={{ borderColor: 'rgba(255,255,255,0.4)', color: '#fff', borderRadius: 6 }}
+                onClick={() => document.getElementById('external-auth')?.scrollIntoView({ behavior: 'smooth' })}
+              >
+                接入方案
+              </Button>
+            </Space>
+          </div>
+        </div>
+      </AnimatedSection>
 
       {/* Pain Points */}
-      <Card title={<Title level={4} style={{ margin: 0 }}>解决的行业痛点</Title>}>
-        <Row gutter={[16, 16]}>
-          {painPoints.map((p, idx) => (
-            <Col xs={24} md={12} lg={8} key={idx}>
-              <Card size="small" hoverable>
-                <Space align="start">
-                  {p.icon}
-                  <div>
-                    <Text strong>{p.title}</Text>
-                    <Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
-                      {p.desc}
-                    </Paragraph>
-                  </div>
-                </Space>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      </Card>
+      <AnimatedSection delay={100}>
+        <div style={{ marginBottom: 80 }}>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <Text style={{ color: accentColor, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              行业痛点
+            </Text>
+            <Title level={2} style={{ marginTop: 8, marginBottom: 12, color: brandColor }}>
+              为什么企业需要私有化 RAG？
+            </Title>
+            <Paragraph style={{ color: mutedColor, fontSize: 16, maxWidth: 640, margin: '0 auto' }}>
+              通用大模型与 SaaS 搜索无法满足企业对安全、权限、溯源和多模态的核心诉求。
+            </Paragraph>
+          </div>
+          <Row gutter={[24, 24]}>
+            {painPoints.map((p, idx) => (
+              <Col xs={24} md={12} lg={8} key={idx}>
+                <Card
+                  hoverable
+                  style={{
+                    height: '100%',
+                    borderRadius: 12,
+                    border: '1px solid #e5e7eb',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    transition: 'transform 200ms, box-shadow 200ms',
+                  }}
+                  bodyStyle={{ padding: 28 }}
+                >
+                  <div style={{ marginBottom: 16 }}>{p.icon}</div>
+                  <Text style={{ color: mutedColor, fontSize: 13, fontWeight: 500 }}>{p.subtitle}</Text>
+                  <Title level={4} style={{ marginTop: 4, marginBottom: 12, color: brandColor }}>
+                    {p.title}
+                  </Title>
+                  <Paragraph style={{ color: '#4b5563', marginBottom: 0, lineHeight: 1.7 }}>
+                    {p.desc}
+                  </Paragraph>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </div>
+      </AnimatedSection>
 
       {/* Permission Structure */}
-      <Card title={<Title level={4} style={{ margin: 0 }}>统一权限结构</Title>}>
-        <Paragraph>
-          系统采用“默认拒绝、五级穿透”的权限模型，从身份到标签逐层过滤，确保检索与生成内容严格受控。
-        </Paragraph>
-        <Row gutter={[16, 16]}>
-          {permissionLayers.map((layer, idx) => (
-            <Col xs={24} md={12} lg={8} key={idx}>
-              <Card
-                size="small"
-                title={
-                  <Space>
-                    <TeamOutlined />
-                    <Text strong>{layer.title}</Text>
+      <AnimatedSection delay={100}>
+        <div style={{ marginBottom: 80, padding: '64px 0', background: surfaceColor, margin: '0 -24px 80px', paddingLeft: 24, paddingRight: 24 }}>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <Text style={{ color: accentColor, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              权限结构
+            </Text>
+            <Title level={2} style={{ marginTop: 8, marginBottom: 12, color: brandColor }}>
+              默认拒绝，五级穿透
+            </Title>
+            <Paragraph style={{ color: mutedColor, fontSize: 16, maxWidth: 640, margin: '0 auto' }}>
+              从身份到标签逐层过滤，确保检索与生成内容严格受控，每一条结果都经过授权。
+            </Paragraph>
+          </div>
+          <Row gutter={[24, 24]}>
+            {permissionLayers.map((layer, idx) => (
+              <Col xs={24} md={12} lg={idx === 0 ? 24 : 12 } key={idx}>
+                <Card
+                  style={{
+                    borderRadius: 12,
+                    border: '1px solid #e5e7eb',
+                    height: idx === 0 ? 'auto' : '100%',
+                  }}
+                  bodyStyle={{ padding: 24 }}
+                >
+                  <Space align="start" size="middle">
+                    <div
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 10,
+                        background: '#fff7ed',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: accentColor,
+                        fontSize: 20,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {layer.icon}
+                    </div>
+                    <div>
+                      <Title level={5} style={{ margin: 0, marginBottom: 4, color: brandColor }}>
+                        {layer.title}
+                      </Title>
+                      <Paragraph style={{ color: mutedColor, marginBottom: 12, fontSize: 13 }}>
+                        {layer.desc}
+                      </Paragraph>
+                      <Space wrap>
+                        {layer.items.map((item, i) => (
+                          <Tag key={i} color="default" style={{ background: '#fff', borderColor: '#e5e7eb', color: '#374151' }}>
+                            {item}
+                          </Tag>
+                        ))}
+                      </Space>
+                    </div>
                   </Space>
-                }
-              >
-                <Space direction="vertical" size={4}>
-                  {layer.items.map((item, i) => (
-                    <Tag key={i} color="blue" style={{ marginRight: 0 }}>
-                      {item}
-                    </Tag>
-                  ))}
-                </Space>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-        <Divider />
-        <Collapse ghost>
-          <Panel header="权限校验流程" key="flow">
-            <Steps direction="vertical" size="small" current={-1}>
-              <Step title="身份认证" description="JWT 解析用户身份与安全等级" />
-              <Step title="知识库授权" description="判断用户是否有该知识库访问权限" />
-              <Step title="文档 ACL" description="检查文档允许/拒绝列表" />
-              <Step title="字段/类型过滤" description="按文件类型和敏感字段配置过滤" />
-              <Step title="标签匹配" description="按密级、部门、项目等标签动态过滤" />
-              <Step title="结果返回" description="仅返回用户被授权看到的 Chunk" />
-            </Steps>
-          </Panel>
-        </Collapse>
-      </Card>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+          <Divider style={{ margin: '48px 0' }} />
+          <Collapse ghost expandIconPosition="end">
+            <Panel
+              header={<Text strong style={{ color: brandColor, fontSize: 16 }}>查看完整权限校验流程</Text>}
+              key="flow"
+            >
+              <Steps direction="vertical" size="small" current={-1}>
+                <Step title="身份认证" description="JWT 解析用户身份、安全等级与部门属性" />
+                <Step title="知识库授权" description="判断用户是否有该知识库访问权限" />
+                <Step title="文档 ACL" description="检查文档允许/拒绝列表" />
+                <Step title="字段/类型过滤" description="按文件类型和敏感字段配置过滤或脱敏" />
+                <Step title="标签匹配" description="按密级、部门、项目等标签动态过滤" />
+                <Step title="结果返回" description="仅返回用户被授权看到的 Chunk" />
+              </Steps>
+            </Panel>
+          </Collapse>
+        </div>
+      </AnimatedSection>
 
       {/* RAG Architecture */}
-      <Card title={<Title level={4} style={{ margin: 0 }}>多模态 RAG 架构</Title>}>
-        <Paragraph>
-          从多源接入到带引用溯源的生成，形成完整的企业知识处理闭环。
-        </Paragraph>
-        <Steps direction="horizontal" size="small" current={-1}>
-          {ragSteps.map((s, idx) => (
-            <Step key={idx} title={s.title} description={s.desc} />
-          ))}
-        </Steps>
-        <Divider />
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            <Card size="small" title="核心组件">
-              <Descriptions column={1} size="small">
-                <Descriptions.Item label="Web 框架">FastAPI + Python 3.11</Descriptions.Item>
-                <Descriptions.Item label="向量数据库">Milvus 2.4</Descriptions.Item>
-                <Descriptions.Item label="关系数据库">PostgreSQL 16</Descriptions.Item>
-                <Descriptions.Item label="缓存">Redis 7</Descriptions.Item>
-                <Descriptions.Item label="消息队列">RabbitMQ 3</Descriptions.Item>
-                <Descriptions.Item label="对象存储">MinIO</Descriptions.Item>
-                <Descriptions.Item label="网关">Kong 3.5</Descriptions.Item>
-                <Descriptions.Item label="前端">React 18 + Vite + Ant Design 5</Descriptions.Item>
-              </Descriptions>
-            </Card>
-          </Col>
-          <Col xs={24} md={12}>
-            <Card size="small" title="关键特性">
-              <ul style={{ paddingLeft: 18, margin: 0 }}>
-                <li>多模态 Chunk 与统一 embedding</li>
-                <li>向量 + 关键词 + Rerank 混合检索</li>
-                <li>检索结果权限实时过滤</li>
-                <li>聊天消息来源可追溯</li>
-                <li>流式输出与敏感词拦截</li>
-                <li>对话、反馈、协作与评测闭环</li>
-                <li>Prometheus + Grafana 可观测</li>
-              </ul>
-            </Card>
-          </Col>
-        </Row>
-      </Card>
+      <AnimatedSection delay={100}>
+        <div id="rag-architecture" style={{ marginBottom: 80 }}>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <Text style={{ color: accentColor, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              RAG 架构
+            </Text>
+            <Title level={2} style={{ marginTop: 8, marginBottom: 12, color: brandColor }}>
+              从数据到答案的完整闭环
+            </Title>
+            <Paragraph style={{ color: mutedColor, fontSize: 16, maxWidth: 640, margin: '0 auto' }}>
+              多模态接入、统一解析、混合检索、权限过滤、带引用溯源的生成。
+            </Paragraph>
+          </div>
+          <Card
+            style={{ borderRadius: 16, border: '1px solid #e5e7eb', marginBottom: 32 }}
+            bodyStyle={{ padding: '32px 24px' }}
+          >
+            <Steps direction="horizontal" size="small" current={-1} responsive>
+              {ragSteps.map((s, idx) => (
+                <Step key={idx} title={s.title} description={s.desc} />
+              ))}
+            </Steps>
+          </Card>
+          <Row gutter={[24, 24]}>
+            <Col xs={24} md={12}>
+              <Card
+                title={<Text strong style={{ color: brandColor, fontSize: 16 }}>核心组件</Text>}
+                style={{ borderRadius: 12, border: '1px solid #e5e7eb', height: '100%' }}
+              >
+                <Descriptions column={1} size="small">
+                  <Descriptions.Item label="Web 框架">FastAPI + Python 3.11</Descriptions.Item>
+                  <Descriptions.Item label="向量数据库">Milvus 2.4</Descriptions.Item>
+                  <Descriptions.Item label="关系数据库">PostgreSQL 16</Descriptions.Item>
+                  <Descriptions.Item label="缓存">Redis 7</Descriptions.Item>
+                  <Descriptions.Item label="消息队列">RabbitMQ 3</Descriptions.Item>
+                  <Descriptions.Item label="对象存储">MinIO</Descriptions.Item>
+                  <Descriptions.Item label="网关">Kong 3.5</Descriptions.Item>
+                  <Descriptions.Item label="前端">React 18 + Vite + Ant Design 5</Descriptions.Item>
+                </Descriptions>
+              </Card>
+            </Col>
+            <Col xs={24} md={12}>
+              <Card
+                title={<Text strong style={{ color: brandColor, fontSize: 16 }}>关键特性</Text>}
+                style={{ borderRadius: 12, border: '1px solid #e5e7eb', height: '100%' }}
+              >
+                <ul style={{ paddingLeft: 18, margin: 0, color: '#374151', lineHeight: 2 }}>
+                  <li>多模态 Chunk 与统一 embedding</li>
+                  <li>向量 + 关键词 + Rerank 混合检索</li>
+                  <li>检索结果权限实时过滤</li>
+                  <li>聊天消息来源可追溯</li>
+                  <li>流式输出与敏感词拦截</li>
+                  <li>对话、反馈、协作与评测闭环</li>
+                  <li>Prometheus + Grafana 可观测</li>
+                </ul>
+              </Card>
+            </Col>
+          </Row>
+        </div>
+      </AnimatedSection>
 
       {/* External Auth & Call */}
-      <Card title={<Title level={4} style={{ margin: 0 }}>外部鉴权与调用方案</Title>}>
-        <Tabs activeKey={activeAuthTab} onChange={setActiveAuthTab} items={externalAuthTabs.map((t) => ({
-          key: t.key,
-          label: (
-            <Space>
-              {t.icon}
-              {t.label}
-            </Space>
-          ),
-          children: t.content,
-        }))} />
-      </Card>
-    </Space>
+      <AnimatedSection delay={100}>
+        <div id="external-auth" style={{ marginBottom: 40 }}>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <Text style={{ color: accentColor, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              外部接入
+            </Text>
+            <Title level={2} style={{ marginTop: 8, marginBottom: 12, color: brandColor }}>
+              鉴权与调用方案
+            </Title>
+            <Paragraph style={{ color: mutedColor, fontSize: 16, maxWidth: 640, margin: '0 auto' }}>
+              通过 Kong 网关统一接入，支持 JWT、API Key 等多种鉴权方式，提供标准 RESTful API。
+            </Paragraph>
+          </div>
+          <Card
+            style={{ borderRadius: 16, border: '1px solid #e5e7eb' }}
+            bodyStyle={{ padding: 32 }}
+          >
+            <Tabs
+              activeKey={activeAuthTab}
+              onChange={setActiveAuthTab}
+              items={externalAuthTabs.map((t) => ({
+                key: t.key,
+                label: (
+                  <Space>
+                    {t.icon}
+                    <span style={{ fontWeight: 500 }}>{t.label}</span>
+                  </Space>
+                ),
+                children: t.content,
+              }))}
+            />
+          </Card>
+        </div>
+      </AnimatedSection>
+
+      {/* CTA Footer */}
+      <AnimatedSection delay={100}>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '64px 24px',
+            background: '#0f172a',
+            margin: '0 -24px -24px',
+            borderRadius: '16px 16px 0 0',
+          }}
+        >
+          <Title level={3} style={{ color: '#fff', marginBottom: 16 }}>
+            准备开始使用？
+          </Title>
+          <Paragraph style={{ color: 'rgba(255,255,255,0.65)', fontSize: 16, marginBottom: 24 }}>
+            从知识库管理开始，构建属于企业的私有化智能知识引擎。
+          </Paragraph>
+          <Button
+            type="primary"
+            size="large"
+            icon={<MessageOutlined />}
+            style={{ background: accentColor, borderColor: accentColor, borderRadius: 6 }}
+          >
+            进入知识库
+          </Button>
+        </div>
+      </AnimatedSection>
+    </div>
   )
 }
 
