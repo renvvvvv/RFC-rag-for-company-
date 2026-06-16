@@ -29,6 +29,7 @@ class RedisClient:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
             cls._instance._prefix = prefix
+            cls._instance._redis = None
         return cls._instance
 
     async def _init(self) -> None:
@@ -50,15 +51,19 @@ class RedisClient:
     def _key(self, key: str) -> str:
         return f"{self._prefix}{key}"
 
-    def _safe(self, coro):
-        """Wrap a coroutine so Redis errors return None instead of raising."""
+    def _safe(self, coro_factory):
+        """Wrap a coroutine factory so Redis errors return None instead of raising.
+
+        ``coro_factory`` is called *after* ``_init`` has run, so ``self._redis``
+        is guaranteed to be either a ``Redis`` instance or ``None``.
+        """
 
         async def wrapper(*args, **kwargs):
             await self._init()
             if self._redis is None:
                 return None
             try:
-                return await coro(*args, **kwargs)
+                return await coro_factory(*args, **kwargs)
             except RedisError as exc:
                 logger.warning("Redis operation failed: %s", exc)
                 return None
@@ -69,41 +74,41 @@ class RedisClient:
     # String operations
     # ------------------------------------------------------------------ #
     async def get(self, key: str) -> str | None:
-        return await self._safe(self._redis.get)(self._key(key))
+        return await self._safe(lambda: self._redis.get(self._key(key)))()
 
     async def set(self, key: str, value: str) -> bool | None:
-        return await self._safe(self._redis.set)(self._key(key), value)
+        return await self._safe(lambda: self._redis.set(self._key(key), value))()
 
     async def setex(self, key: str, value: str, ttl: int) -> bool | None:
-        return await self._safe(self._redis.setex)(self._key(key), ttl, value)
+        return await self._safe(lambda: self._redis.setex(self._key(key), ttl, value))()
 
     # ------------------------------------------------------------------ #
     # Hash operations
     # ------------------------------------------------------------------ #
     async def hget(self, key: str, field: str) -> str | None:
-        return await self._safe(self._redis.hget)(self._key(key), field)
+        return await self._safe(lambda: self._redis.hget(self._key(key), field))()
 
     async def hset(self, key: str, field: str, value: str) -> int | None:
-        return await self._safe(self._redis.hset)(self._key(key), field, value)
+        return await self._safe(lambda: self._redis.hset(self._key(key), field, value))()
 
     async def hdel(self, key: str, *fields: str) -> int | None:
-        return await self._safe(self._redis.hdel)(self._key(key), *fields)
+        return await self._safe(lambda: self._redis.hdel(self._key(key), *fields))()
 
     async def hgetall(self, key: str) -> dict[str, str] | None:
-        return await self._safe(self._redis.hgetall)(self._key(key))
+        return await self._safe(lambda: self._redis.hgetall(self._key(key)))()
 
     # ------------------------------------------------------------------ #
     # Set operations
     # ------------------------------------------------------------------ #
     async def smembers(self, key: str) -> set[str] | None:
-        result = await self._safe(self._redis.smembers)(self._key(key))
+        result = await self._safe(lambda: self._redis.smembers(self._key(key)))()
         return result if result is None else set(result)
 
     async def sadd(self, key: str, *members: str) -> int | None:
-        return await self._safe(self._redis.sadd)(self._key(key), *members)
+        return await self._safe(lambda: self._redis.sadd(self._key(key), *members))()
 
     async def sismember(self, key: str, member: str) -> bool | None:
-        return await self._safe(self._redis.sismember)(self._key(key), member)
+        return await self._safe(lambda: self._redis.sismember(self._key(key), member))()
 
     # ------------------------------------------------------------------ #
     # Generic / pipeline
@@ -112,10 +117,10 @@ class RedisClient:
         if not keys:
             return 0
         prefixed = [self._key(k) for k in keys]
-        return await self._safe(self._redis.delete)(*prefixed)
+        return await self._safe(lambda: self._redis.delete(*prefixed))()
 
     async def expire(self, key: str, ttl: int) -> bool | None:
-        return await self._safe(self._redis.expire)(self._key(key), ttl)
+        return await self._safe(lambda: self._redis.expire(self._key(key), ttl))()
 
     async def scan_delete(self, pattern: str) -> int | None:
         """Delete all keys matching ``pattern`` using SCAN (production-safe).

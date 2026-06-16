@@ -62,6 +62,9 @@ services:
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      LLM_API_URL: ${LLM_API_URL:-http://llm-service:8080/v1/chat/completions}
+      LLM_MODEL: ${LLM_MODEL:-mock-llm}
+      LLM_API_KEY: ${LLM_API_KEY:-}
       # 模型服务配置统一由 backend/.env 提供，便于前端模型配置页面持久化修改
     volumes:
       - ./backend/.env:/app/.env
@@ -123,6 +126,24 @@ services:
     container_name: rag-embedding-service
     environment:
       EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - rag-network
+
+  llm-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.llm
+    container_name: rag-llm-service
+    environment:
+      MOCK_LLM_PORT: ${MOCK_LLM_PORT:-8080}
     expose:
       - "8080"
     healthcheck:
