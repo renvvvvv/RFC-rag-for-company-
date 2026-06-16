@@ -7,6 +7,7 @@ import SearchConsole from '@/pages/SearchConsole'
 import EvalWorkbench from '@/pages/EvalWorkbench'
 import PermissionMgr from '@/pages/PermissionMgr'
 import SystemAdmin from '@/pages/SystemAdmin'
+import ProductPage from '@/pages/ProductPage'
 
 function RequireAuth() {
   const { isAuthenticated } = useAuthStore()
@@ -23,6 +24,7 @@ function AppRouter() {
       <Route path="/login" element={<Login />} />
       <Route element={<RequireAuth />}>
         <Route path="/" element={<KnowledgeBase />} />
+        <Route path="/product" element={<ProductPage />} />
         <Route path="/upload-center" element={<UploadCenter />} />
         <Route path="/search-console" element={<SearchConsole />} />
         <Route path="/eval-workbench" element={<EvalWorkbench />} />

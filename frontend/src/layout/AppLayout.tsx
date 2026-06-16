@@ -8,6 +8,7 @@ import {
   LineChartOutlined,
   SafetyOutlined,
   SettingOutlined,
+  ProfileOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -19,6 +20,7 @@ interface AppLayoutProps {
 
 const menuItems = [
   { key: '/', icon: <DatabaseOutlined />, label: '知识库' },
+  { key: '/product', icon: <ProfileOutlined />, label: '产品方案' },
   { key: '/upload-center', icon: <UploadOutlined />, label: '上传中心' },
   { key: '/search-console', icon: <SearchOutlined />, label: '检索控制台' },
   { key: '/eval-workbench', icon: <LineChartOutlined />, label: '评测工作台' },
