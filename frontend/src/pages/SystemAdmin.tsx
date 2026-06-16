@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  Card,
   Table,
   Button,
   Modal,
@@ -10,11 +9,15 @@ import {
   message,
   Tabs,
   Alert,
+  Row,
+  Col,
 } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import api from '@/services/api'
+import PageHeader from '@/components/ui/PageHeader'
+import DataCard from '@/components/ui/DataCard'
+import { colors } from '@/styles/theme'
 
-const { TabPane } = Tabs
 const { Option } = Select
 
 interface User {
@@ -145,113 +148,160 @@ const SystemAdmin = () => {
     { title: '成员数', dataIndex: 'member_count', key: 'member_count' },
   ]
 
+  const accentButtonStyle = { background: colors.accent, borderColor: colors.accent }
+
+  const tabItems = [
+    {
+      key: 'users',
+      label: '用户管理',
+      children: (
+        <DataCard
+          title="用户管理"
+          extra={
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setUserModal(true)}
+              style={accentButtonStyle}
+            >
+              新增用户
+            </Button>
+          }
+        >
+          <Table rowKey="id" dataSource={users} columns={userColumns} />
+        </DataCard>
+      ),
+    },
+    {
+      key: 'groups',
+      label: '用户群管理',
+      children: (
+        <DataCard
+          title="用户群管理"
+          extra={
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setGroupModal(true)}
+              style={accentButtonStyle}
+            >
+              新增用户群
+            </Button>
+          }
+        >
+          <Table rowKey="id" dataSource={groups} columns={groupColumns} />
+        </DataCard>
+      ),
+    },
+    {
+      key: 'models',
+      label: '模型配置',
+      children: (
+        <DataCard title="模型服务配置">
+          <Alert
+            message="修改后需重启后端服务生效"
+            type="info"
+            showIcon
+            style={{ marginBottom: 16, background: '#eff6ff' }}
+          />
+          <Form
+            form={modelForm}
+            layout="vertical"
+            onFinish={handleSaveModelConfig}
+            initialValues={modelConfig || {}}
+          >
+            <Row gutter={[24, 0]}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="embedding_api_url"
+                  label="Embedding API URL"
+                  rules={[{ required: true }]}
+                >
+                  <Input placeholder="http://localhost:8001/embed" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="embedding_model"
+                  label="Embedding 模型名"
+                  rules={[{ required: true }]}
+                >
+                  <Input placeholder="text-embedding-3-large" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={[24, 0]}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="rerank_api_url"
+                  label="Re-rank API URL"
+                  rules={[{ required: true }]}
+                >
+                  <Input placeholder="http://localhost:8002/rerank" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="rerank_model"
+                  label="Re-rank 模型名"
+                  rules={[{ required: true }]}
+                >
+                  <Input placeholder="bge-reranker-large" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={[24, 0]}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="llm_api_url"
+                  label="LLM API URL"
+                >
+                  <Input placeholder="https://api.minimax.chat/v1/chat/completions" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="llm_model"
+                  label="LLM 模型名"
+                  rules={[{ required: true }]}
+                >
+                  <Input placeholder="minimax-m3" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={[24, 0]}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="llm_api_key"
+                  label="LLM API Key"
+                >
+                  <Input.Password placeholder="sk-xxx" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={savingModel}
+                style={accentButtonStyle}
+              >
+                保存配置
+              </Button>
+            </Form.Item>
+          </Form>
+        </DataCard>
+      ),
+    },
+  ]
+
   return (
     <div>
-      <Tabs defaultActiveKey="users">
-        <TabPane tab="用户管理" key="users">
-          <Card
-            title="用户管理"
-            extra={
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setUserModal(true)}
-              >
-                新增用户
-              </Button>
-            }
-          >
-            <Table rowKey="id" dataSource={users} columns={userColumns} />
-          </Card>
-        </TabPane>
-
-        <TabPane tab="用户群管理" key="groups">
-          <Card
-            title="用户群管理"
-            extra={
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setGroupModal(true)}
-              >
-                新增用户群
-              </Button>
-            }
-          >
-            <Table rowKey="id" dataSource={groups} columns={groupColumns} />
-          </Card>
-        </TabPane>
-
-        <TabPane tab="模型配置" key="models">
-          <Card title="模型服务配置">
-            <Alert
-              message="修改后需重启后端服务生效"
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-            />
-            <Form
-              form={modelForm}
-              layout="vertical"
-              onFinish={handleSaveModelConfig}
-              initialValues={modelConfig || {}}
-            >
-              <Form.Item
-                name="embedding_api_url"
-                label="Embedding API URL"
-                rules={[{ required: true }]}
-              >
-                <Input placeholder="http://localhost:8001/embed" />
-              </Form.Item>
-              <Form.Item
-                name="embedding_model"
-                label="Embedding 模型名"
-                rules={[{ required: true }]}
-              >
-                <Input placeholder="text-embedding-3-large" />
-              </Form.Item>
-              <Form.Item
-                name="rerank_api_url"
-                label="Re-rank API URL"
-                rules={[{ required: true }]}
-              >
-                <Input placeholder="http://localhost:8002/rerank" />
-              </Form.Item>
-              <Form.Item
-                name="rerank_model"
-                label="Re-rank 模型名"
-                rules={[{ required: true }]}
-              >
-                <Input placeholder="bge-reranker-large" />
-              </Form.Item>
-              <Form.Item
-                name="llm_api_url"
-                label="LLM API URL"
-              >
-                <Input placeholder="https://api.minimax.chat/v1/chat/completions" />
-              </Form.Item>
-              <Form.Item
-                name="llm_model"
-                label="LLM 模型名"
-                rules={[{ required: true }]}
-              >
-                <Input placeholder="minimax-m3" />
-              </Form.Item>
-              <Form.Item
-                name="llm_api_key"
-                label="LLM API Key"
-              >
-                <Input.Password placeholder="sk-xxx" />
-              </Form.Item>
-              <Form.Item>
-                <Button type="primary" htmlType="submit" loading={savingModel}>
-                  保存配置
-                </Button>
-              </Form.Item>
-            </Form>
-          </Card>
-        </TabPane>
-      </Tabs>
+      <PageHeader
+        title="系统管理"
+        subtitle="管理用户、用户群和模型服务配置"
+      />
+      <Tabs defaultActiveKey="users" items={tabItems} />
 
       <Modal
         title="新增用户"

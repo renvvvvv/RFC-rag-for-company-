@@ -1,5 +1,5 @@
 import type React from 'react'
-import { Layout, Menu, Avatar, Space, Typography, Button } from 'antd'
+import { Layout, Menu, Avatar, Space, Typography, Button, Badge } from 'antd'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   DatabaseOutlined,
@@ -11,6 +11,7 @@ import {
   ProfileOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/authStore'
+import { colors, spacing, radius, shadows, typography } from '@/styles/theme'
 
 const { Header, Sider, Content } = Layout
 
@@ -34,57 +35,120 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const { user, logout } = useAuthStore()
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="light" width={220}>
+    <Layout style={{ minHeight: '100vh', background: colors.background }}>
+      <Sider
+        theme="light"
+        width={230}
+        style={{
+          background: colors.surface,
+          borderRight: `1px solid ${colors.border}`,
+          boxShadow: shadows.sm,
+          zIndex: 10,
+        }}
+      >
         <div
           style={{
             height: 64,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 'bold',
-            fontSize: 16,
+            padding: `0 ${spacing.lg}px`,
+            borderBottom: `1px solid ${colors.borderLight}`,
           }}
         >
-          企业 RAG
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: radius.md,
+              background: colors.brand,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: colors.accent,
+              fontWeight: typography.weights.bold,
+              fontSize: typography.sizes.lg,
+              marginRight: spacing.md,
+            }}
+          >
+            R
+          </div>
+          <div>
+            <div style={{ fontWeight: typography.weights.semibold, fontSize: typography.sizes.base, color: colors.textPrimary }}>
+              企业 RAG
+            </div>
+            <div style={{ fontSize: typography.sizes.xs, color: colors.textMuted }}>私有化多模态</div>
+          </div>
         </div>
         <Menu
           mode="inline"
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
+          style={{
+            borderRight: 'none',
+            paddingTop: spacing.sm,
+          }}
+          theme="light"
         />
       </Sider>
       <Layout>
         <Header
           style={{
-            background: '#fff',
-            padding: '0 24px',
+            background: colors.surface,
+            padding: `0 ${spacing.lg}px`,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            borderBottom: `1px solid ${colors.borderLight}`,
+            height: 64,
           }}
         >
-          <Typography.Title level={4} style={{ margin: 0 }}>
+          <Typography.Title
+            level={4}
+            style={{
+              margin: 0,
+              color: colors.textPrimary,
+              fontSize: typography.sizes.lg,
+              fontWeight: typography.weights.semibold,
+            }}
+          >
             企业级私有化多模态 RAG 系统
           </Typography.Title>
-          <Space>
-            <span>{user?.username || 'Admin'}</span>
-            <Avatar style={{ backgroundColor: '#1677ff' }}>
+          <Space size={spacing.md} align="center">
+            <Badge status="success" text="运行中" />
+            <span style={{ color: colors.textSecondary, fontSize: typography.sizes.base }}>
+              {user?.username || 'Admin'}
+            </span>
+            <Avatar
+              style={{
+                backgroundColor: colors.accentLight,
+                color: colors.accent,
+                fontWeight: typography.weights.semibold,
+              }}
+            >
               {(user?.username || 'A')[0].toUpperCase()}
             </Avatar>
-            <Button type="link" onClick={() => { logout(); navigate('/login') }}>
+            <Button
+              type="link"
+              style={{ color: colors.textMuted, padding: 0 }}
+              onClick={() => {
+                logout()
+                navigate('/login')
+              }}
+            >
               退出
             </Button>
           </Space>
         </Header>
         <Content
           style={{
-            margin: 24,
-            padding: 24,
-            background: '#fff',
-            borderRadius: 8,
+            margin: spacing.lg,
+            padding: spacing.lg,
+            background: colors.surface,
+            borderRadius: radius.lg,
             minHeight: 280,
+            border: `1px solid ${colors.border}`,
+            boxShadow: shadows.sm,
           }}
         >
           {children}

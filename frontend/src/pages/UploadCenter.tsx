@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  Card,
   Upload,
   Button,
   Form,
@@ -21,12 +20,16 @@ import {
   FileTextOutlined,
   VideoCameraOutlined,
   AudioOutlined,
+  CloudUploadOutlined,
 } from '@ant-design/icons'
 import type { UploadFile, UploadProps } from 'antd/es/upload'
 import api from '@/services/api'
+import PageHeader from '@/components/ui/PageHeader'
+import DataCard from '@/components/ui/DataCard'
+import EmptyState from '@/components/ui/EmptyState'
+import { colors, radius, spacing, typography } from '@/styles/theme'
 
 const { Dragger } = Upload
-const { TabPane } = Tabs
 const { Option } = Select
 
 interface KnowledgeBase {
@@ -43,19 +46,27 @@ interface DocumentItem {
 }
 
 const FILE_ICONS: Record<string, React.ReactNode> = {
-  pdf: <FilePdfOutlined />,
-  excel: <FileExcelOutlined />,
-  image: <FileImageOutlined />,
-  video: <VideoCameraOutlined />,
-  audio: <AudioOutlined />,
-  document: <FileTextOutlined />,
+  pdf: <FilePdfOutlined style={{ color: colors.error }} />,
+  excel: <FileExcelOutlined style={{ color: colors.success }} />,
+  image: <FileImageOutlined style={{ color: colors.info }} />,
+  video: <VideoCameraOutlined style={{ color: colors.warning }} />,
+  audio: <AudioOutlined style={{ color: colors.accent }} />,
+  document: <FileTextOutlined style={{ color: colors.textSecondary }} />,
+}
+
+const statusMap: Record<string, { label: string; color: string }> = {
+  indexed: { label: '已索引', color: colors.success },
+  active: { label: '可用', color: colors.success },
+  processing: { label: '处理中', color: colors.warning },
+  failed: { label: '失败', color: colors.error },
+  pending: { label: '待处理', color: colors.info },
 }
 
 const UploadCenter = () => {
   const [kbList, setKbList] = useState<KnowledgeBase[]>([])
   const [selectedKb, setSelectedKb] = useState<string>()
   const [fileList, setFileList] = useState<UploadFile[]>([])
-  const [loading] = useState(false)
+  const [docsLoading, setDocsLoading] = useState(false)
   const [docs, setDocs] = useState<DocumentItem[]>([])
   const [linkForm] = Form.useForm()
 
@@ -73,11 +84,14 @@ const UploadCenter = () => {
 
   const fetchDocs = async () => {
     if (!selectedKb) return
+    setDocsLoading(true)
     try {
       const res = await api.get(`/v1/documents/${selectedKb}`)
       setDocs(res.data.items || [])
     } catch (e) {
       message.error('加载文档失败')
+    } finally {
+      setDocsLoading(false)
     }
   }
 
@@ -138,98 +152,159 @@ const UploadCenter = () => {
 
   const docColumns = [
     {
-      title: '文件名/URL',
+      title: '文件名 / URL',
       dataIndex: 'filename',
       key: 'filename',
       render: (v: string, record: DocumentItem) => (
         <Space>
-          {FILE_ICONS[record.file_type] || <FileTextOutlined />}
-          {v}
+          {FILE_ICONS[record.file_type] || <FileTextOutlined style={{ color: colors.textSecondary }} />}
+          <span style={{ color: colors.textPrimary }}>{v}</span>
         </Space>
       ),
     },
-    { title: '类型', dataIndex: 'file_type', key: 'file_type' },
+    { title: '类型', dataIndex: 'file_type', key: 'file_type', width: 100 },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
+      width: 120,
       render: (v: string) => {
-        const color =
-          v === 'indexed' || v === 'active' ? 'green' : v === 'failed' ? 'red' : 'processing'
-        return <Tag color={color}>{v}</Tag>
+        const meta = statusMap[v] || { label: v, color: colors.textMuted }
+        return <Tag color={meta.color}>{meta.label}</Tag>
       },
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
+      width: 180,
       render: (v: string) => new Date(v).toLocaleString(),
+    },
+  ]
+
+  const tabItems = [
+    {
+      key: 'file',
+      label: (
+        <Space>
+          <CloudUploadOutlined />
+          <span>文件上传</span>
+        </Space>
+      ),
+      children: (
+        <Dragger
+          customRequest={customUpload}
+          fileList={fileList}
+          onChange={({ fileList: next }) => setFileList(next)}
+          multiple
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.gif,.mp4,.avi,.mov,.mp3,.wav,.txt,.md"
+          style={{
+            padding: spacing.xl,
+            borderRadius: radius.lg,
+            background: colors.surfaceAlt,
+            border: `1px dashed ${colors.border}`,
+          }}
+        >
+          <p style={{ fontSize: 40, color: colors.accent, marginBottom: spacing.md }}>
+            <InboxOutlined />
+          </p>
+          <p style={{ fontSize: typography.sizes.md, color: colors.textPrimary, marginBottom: spacing.sm }}>
+            点击或拖拽文件到此区域上传
+          </p>
+          <p style={{ color: colors.textMuted, fontSize: typography.sizes.sm }}>
+            支持 PDF / Word / Excel / 图片 / 视频 / 音频 / 文本 / Markdown
+          </p>
+        </Dragger>
+      ),
+    },
+    {
+      key: 'link',
+      label: (
+        <Space>
+          <LinkOutlined />
+          <span>链接上传</span>
+        </Space>
+      ),
+      children: (
+        <Form form={linkForm} layout="vertical" onFinish={handleLinkSubmit}>
+          <Form.Item
+            name="url"
+            label="网页链接"
+            rules={[{ required: true, type: 'url', message: '请输入有效URL' }]}
+          >
+            <Input prefix={<LinkOutlined />} placeholder="https://..." />
+          </Form.Item>
+          <Form.Item name="tags" label="标签（逗号分隔）">
+            <Input placeholder="标签1,标签2" />
+          </Form.Item>
+          <Form.Item>
+            <Button
+              type="primary"
+              htmlType="submit"
+              style={{ background: colors.accent, borderColor: colors.accent, borderRadius: radius.md }}
+            >
+              提交链接
+            </Button>
+          </Form.Item>
+        </Form>
+      ),
     },
   ]
 
   return (
     <div>
-      <Card title="上传中心" style={{ marginBottom: 24 }}>
-        <Space style={{ marginBottom: 16 }}>
-          <span>选择知识库：</span>
-          <Select
-            style={{ width: 240 }}
-            value={selectedKb}
-            onChange={setSelectedKb}
-            placeholder="请选择知识库"
-          >
-            {kbList.map((kb) => (
-              <Option key={kb.id} value={kb.id}>
-                {kb.name}
-              </Option>
-            ))}
-          </Select>
-        </Space>
+      <PageHeader
+        title="上传中心"
+        subtitle="将文件或网页链接上传到指定知识库，支持多模态内容解析与索引。"
+      />
 
-        <Tabs defaultActiveKey="file">
-          <TabPane tab="文件上传" key="file">
-            <Dragger
-              customRequest={customUpload}
-              fileList={fileList}
-              onChange={({ fileList }) => setFileList(fileList)}
-              multiple
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.gif,.mp4,.avi,.mov,.mp3,.wav,.txt,.md"
+      <DataCard
+        title="上传文档"
+        extra={
+          <Space>
+            <span style={{ color: colors.textSecondary, fontSize: typography.sizes.sm }}>目标知识库</span>
+            <Select
+              style={{ width: 240 }}
+              value={selectedKb}
+              onChange={setSelectedKb}
+              placeholder="请选择知识库"
             >
-              <p className="ant-upload-drag-icon">
-                <InboxOutlined />
-              </p>
-              <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
-              <p className="ant-upload-hint">
-                支持 PDF / Word / Excel / 图片 / 视频 / 音频 / 文本 / Markdown
-              </p>
-            </Dragger>
-          </TabPane>
+              {kbList.map((kb) => (
+                <Option key={kb.id} value={kb.id}>
+                  {kb.name}
+                </Option>
+              ))}
+            </Select>
+          </Space>
+        }
+        style={{ marginBottom: spacing.lg }}
+      >
+        <Tabs defaultActiveKey="file" items={tabItems} />
+      </DataCard>
 
-          <TabPane tab="链接上传" key="link">
-            <Form form={linkForm} layout="vertical" onFinish={handleLinkSubmit}>
-              <Form.Item
-                name="url"
-                label="网页链接"
-                rules={[{ required: true, type: 'url', message: '请输入有效URL' }]}
-              >
-                <Input prefix={<LinkOutlined />} placeholder="https://..." />
-              </Form.Item>
-              <Form.Item name="tags" label="标签（逗号分隔）">
-                <Input placeholder="标签1,标签2" />
-              </Form.Item>
-              <Form.Item>
-                <Button type="primary" htmlType="submit">
-                  提交链接
-                </Button>
-              </Form.Item>
-            </Form>
-          </TabPane>
-        </Tabs>
-      </Card>
-
-      <Card title="文档列表">
-        <Table rowKey="id" dataSource={docs} columns={docColumns} loading={loading} />
-      </Card>
+      <DataCard
+        title={
+          <Space>
+            <span>文档列表</span>
+            <Tag color={colors.accent}>{docs.length}</Tag>
+          </Space>
+        }
+      >
+        {docs.length === 0 && !docsLoading ? (
+          <EmptyState
+            description="暂无文档"
+            subDescription="上传文件或提交链接后，文档将显示在这里"
+          />
+        ) : (
+          <Table
+            rowKey="id"
+            dataSource={docs}
+            columns={docColumns}
+            loading={docsLoading}
+            pagination={{ pageSize: 10, hideOnSinglePage: true }}
+          />
+        )}
+      </DataCard>
     </div>
   )
 }

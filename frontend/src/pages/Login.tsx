@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Card, Form, Input, Button, message, Typography } from 'antd'
 import { useNavigate } from 'react-router-dom'
+import { SafetyOutlined, LoginOutlined } from '@ant-design/icons'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { getErrorMessage } from '@/utils/error'
+import { colors, spacing, radius, shadows, typography } from '@/styles/theme'
 
-const { Title } = Typography
+const { Title, Paragraph } = Typography
 
 interface LoginForm {
   username: string
@@ -41,35 +43,110 @@ const Login = () => {
   return (
     <div
       style={{
-        height: '100vh',
+        minHeight: '100vh',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        background: '#f0f2f5',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+        padding: spacing.lg,
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
-      <Card style={{ width: 400 }}>
-        <Title level={3} style={{ textAlign: 'center' }}>
-          企业级私有 RAG
-        </Title>
-        <Form layout="vertical" onFinish={handleLogin}>
+      <div
+        style={{
+          position: 'absolute',
+          top: '-10%',
+          right: '-10%',
+          width: 600,
+          height: 600,
+          background: 'radial-gradient(circle, rgba(229,112,53,0.2) 0%, transparent 65%)',
+          borderRadius: '50%',
+          filter: 'blur(80px)',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '-15%',
+          left: '-10%',
+          width: 500,
+          height: 500,
+          background: 'radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 65%)',
+          borderRadius: '50%',
+          filter: 'blur(80px)',
+        }}
+      />
+
+      <Card
+        style={{
+          width: 420,
+          maxWidth: '100%',
+          borderRadius: radius.xl,
+          border: 'none',
+          boxShadow: shadows.xl,
+          position: 'relative',
+          zIndex: 1,
+        }}
+        bodyStyle={{ padding: spacing.xxl }}
+      >
+        <div style={{ textAlign: 'center', marginBottom: spacing.xl }}>
+          <div
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: radius.lg,
+              background: colors.brand,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto',
+              marginBottom: spacing.lg,
+              color: colors.accent,
+              fontSize: 28,
+            }}
+          >
+            <SafetyOutlined />
+          </div>
+          <Title level={3} style={{ margin: 0, marginBottom: spacing.sm, color: colors.textPrimary }}>
+            企业级私有 RAG
+          </Title>
+          <Paragraph style={{ color: colors.textMuted, margin: 0, fontSize: typography.sizes.sm }}>
+            安全、可信、可溯源的企业知识检索平台
+          </Paragraph>
+        </div>
+
+        <Form layout="vertical" onFinish={handleLogin} size="large">
           <Form.Item
             name="username"
-            label="用户名"
+            label={<span style={{ color: colors.textSecondary, fontWeight: typography.weights.medium }}>用户名</span>}
             rules={[{ required: true, message: '请输入用户名' }]}
           >
             <Input placeholder="admin" />
           </Form.Item>
           <Form.Item
             name="password"
-            label="密码"
+            label={<span style={{ color: colors.textSecondary, fontWeight: typography.weights.medium }}>密码</span>}
             rules={[{ required: true, message: '请输入密码' }]}
           >
             <Input.Password placeholder="admin123" />
           </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading} block>
-              登录
+          <Form.Item style={{ marginTop: spacing.lg, marginBottom: 0 }}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={loading}
+              block
+              icon={<LoginOutlined />}
+              style={{
+                background: colors.accent,
+                borderColor: colors.accent,
+                borderRadius: radius.md,
+                height: 44,
+                fontWeight: typography.weights.semibold,
+              }}
+            >
+              登录系统
             </Button>
           </Form.Item>
         </Form>

@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
 import {
-  Card,
   Input,
   Button,
   Select,
@@ -20,8 +19,13 @@ import {
   DislikeOutlined,
   PlusOutlined,
   SendOutlined,
+  MessageOutlined,
+  SettingOutlined,
+  BookOutlined,
 } from '@ant-design/icons'
 import api from '@/services/api'
+import DataCard from '@/components/ui/DataCard'
+import { colors, radius, shadows, spacing, typography } from '@/styles/theme'
 
 const { TextArea } = Input
 const { Option } = Select
@@ -84,9 +88,7 @@ const SearchConsole = () => {
   useEffect(() => {
     api
       .get('/v1/knowledge-bases')
-      .then((res) => {
-        setKbList(res.data)
-      })
+      .then((res) => setKbList(res.data))
       .catch(() => message.error('加载知识库失败'))
     loadConversations()
   }, [])
@@ -100,7 +102,7 @@ const SearchConsole = () => {
       const res = await api.get('/v1/chat/conversations')
       setConversations(res.data)
     } catch {
-      // 静默失败，避免阻塞主流程
+      // silent
     }
   }
 
@@ -164,14 +166,12 @@ const SearchConsole = () => {
 
   const sendFeedback = async (messageId: string, rating: number) => {
     try {
-      await api.post(`/v1/chat/messages/${messageId}/feedback/`, {
+      await api.post(`/v1/chat/messages/${messageId}/feedback`, {
         rating,
         comment: '',
       })
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === messageId ? { ...m, feedback_rating: rating } : m
-        )
+        prev.map((m) => (m.id === messageId ? { ...m, feedback_rating: rating } : m))
       )
       message.success('反馈已提交')
     } catch {
@@ -235,13 +235,23 @@ const SearchConsole = () => {
   }
 
   return (
-    <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 180px)' }}>
-      <Card title="会话列表" style={{ width: 260, flexShrink: 0 }}>
+    <div style={{ display: 'flex', gap: spacing.lg, height: 'calc(100vh - 180px)' }}>
+      {/* Conversation List */}
+      <DataCard
+        title={
+          <Space>
+            <MessageOutlined style={{ color: colors.accent }} />
+            <span>会话列表</span>
+          </Space>
+        }
+        style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column' }}
+        bodyStyle={{ padding: spacing.md, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+      >
         <Button
           type="dashed"
           icon={<PlusOutlined />}
           block
-          style={{ marginBottom: 12 }}
+          style={{ marginBottom: spacing.md, borderRadius: radius.md }}
           onClick={() => {
             setCurrentConversationId(null)
             setMessages([])
@@ -249,49 +259,71 @@ const SearchConsole = () => {
         >
           新建会话
         </Button>
-        <List
-          dataSource={conversations}
-          renderItem={(conv) => (
-            <List.Item
-              key={conv.id}
-              style={{
-                padding: '8px 4px',
-                cursor: 'pointer',
-                background: currentConversationId === conv.id ? '#e6f4ff' : 'transparent',
-                borderRadius: 4,
-              }}
-              onClick={() => selectConversation(conv)}
-              actions={[
-                <Popconfirm
-                  key="delete"
-                  title="确定删除该会话？"
-                  onConfirm={(e) => deleteConversation(conv.id, e as React.MouseEvent<HTMLElement>)}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <List
+            dataSource={conversations}
+            renderItem={(conv) => (
+              <List.Item
+                key={conv.id}
+                style={{
+                  padding: `${spacing.sm}px ${spacing.md}px`,
+                  cursor: 'pointer',
+                  background: currentConversationId === conv.id ? colors.accentLight : 'transparent',
+                  borderRadius: radius.md,
+                  marginBottom: spacing.xs,
+                  transition: 'background 200ms',
+                }}
+                onClick={() => selectConversation(conv)}
+                actions={[
+                  <Popconfirm
+                    key="delete"
+                    title="确定删除该会话？"
+                    onConfirm={(e) => deleteConversation(conv.id, e as React.MouseEvent<HTMLElement>)}
+                  >
+                    <Button
+                      type="text"
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </Popconfirm>,
+                ]}
+              >
+                <div
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    color: currentConversationId === conv.id ? colors.accent : colors.textPrimary,
+                    fontWeight: currentConversationId === conv.id ? typography.weights.medium : typography.weights.normal,
+                  }}
                 >
-                  <Button
-                    type="text"
-                    size="small"
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </Popconfirm>,
-              ]}
-            >
-              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {conv.title}
-              </div>
-            </List.Item>
-          )}
-        />
-      </Card>
+                  {conv.title}
+                </div>
+              </List.Item>
+            )}
+          />
+        </div>
+      </DataCard>
 
-      <Card title="检索配置" style={{ width: 320, flexShrink: 0 }}>
-        <Space direction="vertical" style={{ width: '100%' }}>
+      {/* Config Panel */}
+      <DataCard
+        title={
+          <Space>
+            <SettingOutlined style={{ color: colors.accent }} />
+            <span>检索配置</span>
+          </Space>
+        }
+        style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column' }}
+        bodyStyle={{ padding: spacing.md }}
+      >
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
-            <Text strong>知识库</Text>
+            <Text strong style={{ color: colors.textPrimary }}>知识库</Text>
             <Select
               mode="multiple"
-              style={{ width: '100%', marginTop: 8 }}
+              style={{ width: '100%', marginTop: spacing.sm }}
               placeholder="选择知识库"
               value={selectedKbs}
               onChange={setSelectedKbs}
@@ -304,22 +336,56 @@ const SearchConsole = () => {
             </Select>
           </div>
           <div>
-            <Text strong>模态</Text>
+            <Text strong style={{ color: colors.textPrimary }}>模态</Text>
             <Checkbox.Group
-              style={{ marginTop: 8, display: 'block' }}
+              style={{ marginTop: spacing.sm, display: 'block' }}
               options={MODALITY_OPTIONS}
               value={modalities}
               onChange={(vals) => setModalities(vals as string[])}
             />
           </div>
+          <div style={{ padding: spacing.md, background: colors.surfaceAlt, borderRadius: radius.md }}>
+            <Text type="secondary" style={{ fontSize: typography.sizes.sm }}>
+              已选择 {selectedKbs.length} 个知识库，{modalities.length} 种模态
+            </Text>
+          </div>
         </Space>
-      </Card>
+      </DataCard>
 
-      <Card title="检索问答" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, overflowY: 'auto', marginBottom: 16, paddingRight: 8 }}>
+      {/* Chat Area */}
+      <DataCard
+        title={
+          <Space>
+            <BookOutlined style={{ color: colors.accent }} />
+            <span>检索问答</span>
+          </Space>
+        }
+        style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+        bodyStyle={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column' }}
+      >
+        <div style={{ flex: 1, overflowY: 'auto', padding: spacing.lg }}>
           {messages.length === 0 && (
-            <div style={{ color: '#999', textAlign: 'center', marginTop: 100 }}>
-              输入问题开始检索企业知识库
+            <div style={{ textAlign: 'center', marginTop: 100 }}>
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: radius.full,
+                  background: colors.accentLight,
+                  color: colors.accent,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 28,
+                  margin: '0 auto',
+                  marginBottom: spacing.lg,
+                }}
+              >
+                <MessageOutlined />
+              </div>
+              <Text style={{ color: colors.textMuted, fontSize: typography.sizes.md }}>
+                输入问题，开始检索企业知识库
+              </Text>
             </div>
           )}
           <List
@@ -329,52 +395,58 @@ const SearchConsole = () => {
                 key={idx}
                 style={{
                   justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                  padding: `${spacing.sm}px 0`,
+                  borderBottom: 'none',
                 }}
               >
                 <div
                   style={{
                     maxWidth: '80%',
-                    background: msg.role === 'user' ? '#1677ff' : '#f6f6f6',
-                    color: msg.role === 'user' ? '#fff' : '#333',
-                    padding: 12,
-                    borderRadius: 8,
+                    background: msg.role === 'user' ? colors.brand : colors.surfaceAlt,
+                    color: msg.role === 'user' ? colors.white : colors.textPrimary,
+                    padding: spacing.md,
+                    borderRadius: radius.lg,
+                    border: msg.role === 'user' ? 'none' : `1px solid ${colors.border}`,
+                    boxShadow: shadows.sm,
                   }}
                 >
-                  <Paragraph style={{ margin: 0, color: 'inherit' }}>
+                  <Paragraph style={{ margin: 0, color: 'inherit', lineHeight: typography.lineHeights.relaxed }}>
                     {msg.content}
                   </Paragraph>
                   {msg.intercepted && (
-                    <Tag color="red" style={{ marginTop: 8 }}>
+                    <Tag color="error" style={{ marginTop: spacing.sm }}>
                       已拦截
                     </Tag>
                   )}
                   {msg.strategy && (
-                    <Tag color="blue" style={{ marginTop: 8 }}>
+                    <Tag color="processing" style={{ marginTop: spacing.sm }}>
                       {msg.strategy.strategy}: {msg.strategy.reason}
                     </Tag>
                   )}
                   {msg.sources && msg.sources.length > 0 && (
-                    <div style={{ marginTop: 12 }}>
-                      <Text strong style={{ color: 'inherit' }}>
-                        来源：
+                    <div style={{ marginTop: spacing.md, paddingTop: spacing.sm, borderTop: `1px solid ${msg.role === 'user' ? 'rgba(255,255,255,0.2)' : colors.border}` }}>
+                      <Text strong style={{ color: 'inherit', fontSize: typography.sizes.sm }}>
+                        引用来源
                       </Text>
-                      {msg.sources.map((s, i) => (
-                        <Tag key={i} color="default">
-                          {s.modality} [{s.score.toFixed(2)}]
-                        </Tag>
-                      ))}
+                      <div style={{ marginTop: spacing.xs }}>
+                        {msg.sources.map((s, i) => (
+                          <Tooltip key={i} title={s.content}>
+                            <Tag color="default" style={{ cursor: 'help' }}>
+                              {s.modality} [{s.score.toFixed(2)}]
+                            </Tag>
+                          </Tooltip>
+                        ))}
+                      </div>
                     </div>
                   )}
                   {msg.role === 'assistant' && msg.id && (
-                    <div style={{ marginTop: 8, textAlign: 'right' }}>
+                    <div style={{ marginTop: spacing.sm, textAlign: 'right' }}>
                       <Tooltip title="有帮助">
                         <Button
                           type="text"
                           size="small"
                           icon={<LikeOutlined />}
-                          style={{
-                            color: msg.feedback_rating === 1 ? '#52c41a' : undefined,
-                          }}
+                          style={{ color: msg.feedback_rating === 1 ? colors.success : colors.textMuted }}
                           onClick={() => sendFeedback(msg.id!, 1)}
                         />
                       </Tooltip>
@@ -383,9 +455,7 @@ const SearchConsole = () => {
                           type="text"
                           size="small"
                           icon={<DislikeOutlined />}
-                          style={{
-                            color: msg.feedback_rating === -1 ? '#ff4d4f' : undefined,
-                          }}
+                          style={{ color: msg.feedback_rating === -1 ? colors.error : colors.textMuted }}
                           onClick={() => sendFeedback(msg.id!, -1)}
                         />
                       </Tooltip>
@@ -396,37 +466,45 @@ const SearchConsole = () => {
             )}
           />
           {loading && (
-            <div style={{ textAlign: 'center', padding: 16 }}>
+            <div style={{ textAlign: 'center', padding: spacing.lg }}>
               <Spin tip="检索生成中..." />
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        <Space.Compact style={{ width: '100%' }}>
-          <TextArea
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="输入您的问题..."
-            autoSize={{ minRows: 2, maxRows: 6 }}
-            onPressEnter={(e) => {
-              if (!e.shiftKey) {
-                e.preventDefault()
-                handleSend()
-              }
-            }}
-          />
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={handleSend}
-            loading={loading}
-            style={{ height: 'auto' }}
-          >
-            发送
-          </Button>
-        </Space.Compact>
-      </Card>
+        <div style={{ padding: spacing.lg, borderTop: `1px solid ${colors.borderLight}` }}>
+          <Space.Compact style={{ width: '100%' }}>
+            <TextArea
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="输入您的问题，Shift + Enter 换行..."
+              autoSize={{ minRows: 2, maxRows: 6 }}
+              onPressEnter={(e) => {
+                if (!e.shiftKey) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              style={{ borderRadius: `${radius.md}px 0 0 ${radius.md}px` }}
+            />
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={handleSend}
+              loading={loading}
+              style={{
+                height: 'auto',
+                borderRadius: `0 ${radius.md}px ${radius.md}px 0`,
+                background: colors.accent,
+                borderColor: colors.accent,
+              }}
+            >
+              发送
+            </Button>
+          </Space.Compact>
+        </div>
+      </DataCard>
     </div>
   )
 }

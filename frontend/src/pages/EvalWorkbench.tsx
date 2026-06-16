@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  Card,
   Table,
   Button,
   Modal,
@@ -16,10 +15,12 @@ import {
 } from 'antd'
 import { PlusOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import api from '@/services/api'
+import PageHeader from '@/components/ui/PageHeader'
+import DataCard from '@/components/ui/DataCard'
+import { colors, radius, typography } from '@/styles/theme'
 
 const { TextArea } = Input
 const { Option } = Select
-const { TabPane } = Tabs
 const { Text } = Typography
 
 interface KnowledgeBase {
@@ -48,10 +49,10 @@ interface EvaluationTask {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'default',
-  running: 'processing',
-  completed: 'success',
-  failed: 'error',
+  pending: colors.info,
+  running: colors.warning,
+  completed: colors.success,
+  failed: colors.error,
 }
 
 const EvalWorkbench = () => {
@@ -179,7 +180,7 @@ const EvalWorkbench = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (v: string) => <Tag color={STATUS_COLORS[v] || 'default'}>{v}</Tag>,
+      render: (v: string) => <Tag color={STATUS_COLORS[v] || colors.textMuted}>{v}</Tag>,
     },
     {
       title: '知识库',
@@ -233,58 +234,74 @@ const EvalWorkbench = () => {
     )
   }
 
-  return (
-    <div>
-      <Tabs defaultActiveKey="datasets">
-        <TabPane tab="评测数据集" key="datasets">
-          <Card
-            title="评测数据集"
-            extra={
+  const tabItems = [
+    {
+      key: 'datasets',
+      label: '评测数据集',
+      children: (
+        <DataCard
+          title="评测数据集"
+          extra={
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setDatasetModalVisible(true)}
+              style={{ background: colors.accent, borderColor: colors.accent }}
+            >
+              新建数据集
+            </Button>
+          }
+        >
+          <Table
+            rowKey="id"
+            loading={loadingDatasets}
+            dataSource={datasets}
+            columns={datasetColumns}
+          />
+        </DataCard>
+      ),
+    },
+    {
+      key: 'tasks',
+      label: '评测任务',
+      children: (
+        <DataCard
+          title="评测任务"
+          extra={
+            <Space>
+              <Button icon={<ReloadOutlined />} onClick={fetchTasks}>
+                刷新
+              </Button>
               <Button
                 type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setDatasetModalVisible(true)}
+                icon={<PlayCircleOutlined />}
+                onClick={() => setTaskModalVisible(true)}
+                style={{ background: colors.accent, borderColor: colors.accent }}
               >
-                新建数据集
+                运行评测
               </Button>
-            }
-          >
-            <Table
-              rowKey="id"
-              loading={loadingDatasets}
-              dataSource={datasets}
-              columns={datasetColumns}
-            />
-          </Card>
-        </TabPane>
+            </Space>
+          }
+        >
+          <Table
+            rowKey="id"
+            loading={loadingTasks}
+            dataSource={tasks}
+            columns={taskColumns}
+          />
+        </DataCard>
+      ),
+    },
+  ]
 
-        <TabPane tab="评测任务" key="tasks">
-          <Card
-            title="评测任务"
-            extra={
-              <Space>
-                <Button icon={<ReloadOutlined />} onClick={fetchTasks}>
-                  刷新
-                </Button>
-                <Button
-                  type="primary"
-                  icon={<PlayCircleOutlined />}
-                  onClick={() => setTaskModalVisible(true)}
-                >
-                  运行评测
-                </Button>
-              </Space>
-            }
-          >
-            <Table
-              rowKey="id"
-              loading={loadingTasks}
-              dataSource={tasks}
-              columns={taskColumns}
-            />
-          </Card>
-        </TabPane>
-      </Tabs>
+  return (
+    <div>
+      <PageHeader
+        title="评测工作台"
+        subtitle="构建评测数据集、运行评测任务并分析检索与生成质量"
+      />
+
+      <Tabs defaultActiveKey="datasets" items={tabItems} />
 
       <Modal
         title="新建评测数据集"
@@ -400,7 +417,7 @@ const EvalWorkbench = () => {
           <div>
             <Descriptions size="small" column={2}>
               <Descriptions.Item label="状态">
-                <Tag color={STATUS_COLORS[selectedTask.status] || 'default'}>
+                <Tag color={STATUS_COLORS[selectedTask.status] || colors.textMuted}>
                   {selectedTask.status}
                 </Tag>
               </Descriptions.Item>
@@ -415,7 +432,17 @@ const EvalWorkbench = () => {
             {Boolean((selectedTask.results?.aggregated as Record<string, unknown> | undefined)?.samples) && (
               <div style={{ marginTop: 16 }}>
                 <Text strong>样本详情</Text>
-                <pre style={{ maxHeight: 300, overflow: 'auto', background: '#f6f6f6', padding: 12 }}>
+                <pre
+                  style={{
+                    maxHeight: 300,
+                    overflow: 'auto',
+                    background: colors.codeBg,
+                    color: colors.codeText,
+                    padding: 12,
+                    borderRadius: radius.md,
+                    fontFamily: typography.mono,
+                  }}
+                >
                   {JSON.stringify(
                     (selectedTask.results?.aggregated as Record<string, unknown> | undefined)?.samples,
                     null,
