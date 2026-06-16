@@ -105,7 +105,7 @@ const UploadCenter = () => {
     formData.append('title', (file as File).name)
 
     try {
-      await api.post('/v1/documents/', formData, {
+      await api.post('/v1/documents', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       onSuccess?.('ok')

@@ -16,6 +16,10 @@ api.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    // Normalize URLs: remove trailing slashes to avoid FastAPI 307 redirects
+    if (config.url && config.url.length > 1 && config.url.endsWith('/')) {
+      config.url = config.url.replace(/\/+$/, '')
+    }
     return config
   },
   (error) => Promise.reject(error)

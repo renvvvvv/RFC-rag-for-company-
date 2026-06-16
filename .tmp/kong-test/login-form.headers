@@ -1,0 +1,17 @@
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Content-Length: 37
+Connection: keep-alive
+RateLimit-Reset: 48
+X-RateLimit-Remaining-Minute: 98
+X-RateLimit-Limit-Minute: 100
+RateLimit-Limit: 100
+RateLimit-Remaining: 98
+date: Tue, 16 Jun 2026 03:12:12 GMT
+server: uvicorn
+x-request-id: a969a0fa-4b45-4e48-bd69-8e4091d06eda
+X-Kong-Upstream-Latency: 14
+X-Kong-Proxy-Latency: 3
+Via: kong/3.5.0
+X-Kong-Request-Id: c0f8cc26f4b12c4cfdfb0f1679432d1e
+

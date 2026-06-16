@@ -1,0 +1,17 @@
+HTTP/1.1 307 Temporary Redirect
+Content-Length: 0
+Connection: keep-alive
+RateLimit-Reset: 36
+X-RateLimit-Remaining-Minute: 98
+X-RateLimit-Limit-Minute: 100
+RateLimit-Limit: 100
+RateLimit-Remaining: 98
+date: Tue, 16 Jun 2026 03:11:24 GMT
+server: uvicorn
+location: http://app-backend:8080/api/v1/health
+x-request-id: 9500298c-aa4a-494b-8677-5666c2bbe8f0
+X-Kong-Upstream-Latency: 2
+X-Kong-Proxy-Latency: 7
+Via: kong/3.5.0
+X-Kong-Request-Id: 237df13dd6c8f01590f15262c92e7d0e
+

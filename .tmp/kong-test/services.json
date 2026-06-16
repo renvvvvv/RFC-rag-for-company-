@@ -1,0 +1,45 @@
+{
+    "data": [
+        {
+            "port": 8080,
+            "id": "b4b5ac7c-d834-5b57-84cf-1c2b2cda33f6",
+            "client_certificate": null,
+            "protocol": "http",
+            "connect_timeout": 60000,
+            "path": null,
+            "host": "app-backend",
+            "created_at": 1781574457,
+            "updated_at": 1781574457,
+            "tls_verify": null,
+            "ca_certificates": null,
+            "tls_verify_depth": null,
+            "tags": null,
+            "enabled": true,
+            "write_timeout": 60000,
+            "name": "app-backend",
+            "read_timeout": 60000,
+            "retries": 5
+        },
+        {
+            "port": 80,
+            "id": "b286c2ec-0729-53e1-8fec-24e0ab683b3b",
+            "client_certificate": null,
+            "protocol": "http",
+            "connect_timeout": 60000,
+            "path": null,
+            "host": "frontend",
+            "created_at": 1781574457,
+            "updated_at": 1781574457,
+            "tls_verify": null,
+            "ca_certificates": null,
+            "tls_verify_depth": null,
+            "tags": null,
+            "enabled": true,
+            "write_timeout": 60000,
+            "name": "frontend",
+            "read_timeout": 60000,
+            "retries": 5
+        }
+    ],
+    "next": null
+}

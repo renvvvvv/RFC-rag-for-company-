@@ -1,0 +1,17 @@
+HTTP/1.1 307 Temporary Redirect
+Content-Length: 0
+Connection: keep-alive
+RateLimit-Reset: 11
+X-RateLimit-Remaining-Minute: 94
+X-RateLimit-Limit-Minute: 100
+RateLimit-Limit: 100
+RateLimit-Remaining: 94
+date: Tue, 16 Jun 2026 03:11:49 GMT
+server: uvicorn
+location: http://app-backend:8080/api/v1/auth/login
+x-request-id: 4b91a1ef-ca4a-45f3-996e-864383893aa3
+X-Kong-Upstream-Latency: 229
+X-Kong-Proxy-Latency: 4
+Via: kong/3.5.0
+X-Kong-Request-Id: 6aedd21f666eca64c1eca922977fe547
+

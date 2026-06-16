@@ -1,0 +1,96 @@
+{
+    "data": [
+        {
+            "methods": null,
+            "paths": [
+                "/docs",
+                "/openapi.json"
+            ],
+            "destinations": null,
+            "id": "28eef542-4bad-5861-80f5-347b36a0be75",
+            "protocols": [
+                "http",
+                "https"
+            ],
+            "regex_priority": 0,
+            "preserve_host": false,
+            "hosts": null,
+            "name": "app-backend-docs",
+            "sources": null,
+            "created_at": 1781574457,
+            "strip_path": false,
+            "snis": null,
+            "request_buffering": true,
+            "path_handling": "v0",
+            "tags": null,
+            "service": {
+                "id": "b4b5ac7c-d834-5b57-84cf-1c2b2cda33f6"
+            },
+            "response_buffering": true,
+            "https_redirect_status_code": 426,
+            "updated_at": 1781574457,
+            "headers": null
+        },
+        {
+            "methods": null,
+            "paths": [
+                "/api"
+            ],
+            "destinations": null,
+            "id": "589d082f-b5d6-5848-9194-788266897f54",
+            "protocols": [
+                "http",
+                "https"
+            ],
+            "regex_priority": 0,
+            "preserve_host": false,
+            "hosts": null,
+            "name": "app-backend-api",
+            "sources": null,
+            "created_at": 1781574457,
+            "strip_path": false,
+            "snis": null,
+            "request_buffering": true,
+            "path_handling": "v0",
+            "tags": null,
+            "service": {
+                "id": "b4b5ac7c-d834-5b57-84cf-1c2b2cda33f6"
+            },
+            "response_buffering": true,
+            "https_redirect_status_code": 426,
+            "updated_at": 1781574457,
+            "headers": null
+        },
+        {
+            "methods": null,
+            "paths": [
+                "/"
+            ],
+            "destinations": null,
+            "id": "5b6e0535-d382-5d37-9458-ae324249c834",
+            "protocols": [
+                "http",
+                "https"
+            ],
+            "regex_priority": 0,
+            "preserve_host": false,
+            "hosts": null,
+            "name": "frontend-root",
+            "sources": null,
+            "created_at": 1781574457,
+            "strip_path": false,
+            "snis": null,
+            "request_buffering": true,
+            "path_handling": "v0",
+            "tags": null,
+            "service": {
+                "id": "b286c2ec-0729-53e1-8fec-24e0ab683b3b"
+            },
+            "response_buffering": true,
+            "https_redirect_status_code": 426,
+            "updated_at": 1781574457,
+            "headers": null
+        }
+    ],
+    "next": null
+}

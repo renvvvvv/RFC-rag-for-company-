@@ -83,7 +83,7 @@ const SearchConsole = () => {
 
   useEffect(() => {
     api
-      .get('/v1/knowledge-bases/')
+      .get('/v1/knowledge-bases')
       .then((res) => {
         setKbList(res.data)
       })
@@ -97,7 +97,7 @@ const SearchConsole = () => {
 
   const loadConversations = async () => {
     try {
-      const res = await api.get('/v1/chat/conversations/')
+      const res = await api.get('/v1/chat/conversations')
       setConversations(res.data)
     } catch {
       // 静默失败，避免阻塞主流程
@@ -106,7 +106,7 @@ const SearchConsole = () => {
 
   const loadMessages = async (conversationId: string) => {
     try {
-      const res = await api.get(`/v1/chat/conversations/${conversationId}/messages/`)
+      const res = await api.get(`/v1/chat/conversations/${conversationId}/messages`)
       const loaded: ChatMessage[] = res.data.map((m: { id: string; role: 'user' | 'assistant'; content: string; sources?: Source[]; feedback_rating?: number; feedback_comment?: string }) => ({
         id: m.id,
         role: m.role,
@@ -127,7 +127,7 @@ const SearchConsole = () => {
       return null
     }
     try {
-      const res = await api.post('/v1/chat/conversations/', {
+      const res = await api.post('/v1/chat/conversations', {
         title: query.trim() || '新会话',
         kb_ids: selectedKbs,
       })
@@ -151,7 +151,7 @@ const SearchConsole = () => {
   const deleteConversation = async (conversationId: string, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
-      await api.delete(`/v1/chat/conversations/${conversationId}/`)
+      await api.delete(`/v1/chat/conversations/${conversationId}`)
       setConversations((prev) => prev.filter((c) => c.id !== conversationId))
       if (currentConversationId === conversationId) {
         setCurrentConversationId(null)
@@ -200,7 +200,7 @@ const SearchConsole = () => {
     setQuery('')
 
     try {
-      const res = await api.post('/v1/chat/', {
+      const res = await api.post('/v1/chat', {
         query: currentQuery,
         kb_ids: selectedKbs,
         conversation_id: conversationId,

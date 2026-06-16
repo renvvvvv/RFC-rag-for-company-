@@ -106,6 +106,7 @@ app = FastAPI(
     title=settings.APP_NAME,
     version="0.1.0",
     lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 
