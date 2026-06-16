@@ -77,7 +77,7 @@ def _build_search_response(
     )
 
 
-@router.post("/", response_model=SearchResponse)
+@router.post("", response_model=SearchResponse)
 async def search(
     request: SearchRequest,
     db: AsyncSession = Depends(get_db),

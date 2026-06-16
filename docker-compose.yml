@@ -116,6 +116,24 @@ services:
     networks:
       - rag-network
 
+  embedding-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.embedding
+    container_name: rag-embedding-service
+    environment:
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - rag-network
+
   embed-worker:
     build:
       context: ./backend
@@ -134,6 +152,8 @@ services:
       rabbitmq:
         condition: service_healthy
       milvus-standalone:
+        condition: service_healthy
+      embedding-service:
         condition: service_healthy
     networks:
       - rag-network

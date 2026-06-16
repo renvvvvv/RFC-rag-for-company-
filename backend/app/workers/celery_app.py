@@ -15,6 +15,12 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    task_default_queue="ingest",
+    task_routes={
+        "app.workers.ingest_tasks.*": {"queue": "ingest"},
+        "app.workers.embed_tasks.*": {"queue": "embed"},
+        "app.workers.eval_tasks.*": {"queue": "ingest"},
+    },
 )
 
 # Import task modules so Celery auto-discovers them.

@@ -12,8 +12,9 @@ from typing import Any, Dict, List
 from uuid import UUID
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.models.chunk import Chunk
@@ -25,18 +26,25 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-async_engine = create_async_engine(
-    settings.async_database_url,
-    echo=False,
-    future=True,
-)
-AsyncSessionLocal = async_sessionmaker(
-    async_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,
-    autocommit=False,
-)
+def _create_async_session() -> AsyncSession:
+    """Create a fresh async engine bound to the current process.
+
+    Creating the engine inside the task avoids asyncpg connections being
+    inherited across Celery prefork worker forks.
+    """
+    engine = create_async_engine(
+        settings.async_database_url,
+        echo=False,
+        future=True,
+        poolclass=NullPool,
+    )
+    return async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False,
+    )()
 
 
 class _ChunkWrapper:
@@ -102,7 +110,8 @@ async def _embed_chunks_async(chunk_ids: List[str]) -> Dict[str, Any]:
     milvus = MilvusVectorStore()
     meili = MeilisearchFulltextStore()
 
-    async with AsyncSessionLocal() as session:
+    session = _create_async_session()
+    try:
         stmt = select(Chunk).where(Chunk.id.in_([UUID(cid) for cid in chunk_ids]))
         result = await session.execute(stmt)
         chunks = list(result.scalars().all())
@@ -131,7 +140,7 @@ async def _embed_chunks_async(chunk_ids: List[str]) -> Dict[str, Any]:
                     payload["image_path"] = frame_path
             payloads.append(payload)
 
-        embeddings = await _call_embedding_service(payloads)
+        embeddings = _call_embedding_service(payloads)
         if len(embeddings) != len(chunks):
             raise RuntimeError(
                 f"Embedding count mismatch: expected {len(chunks)}, got {len(embeddings)}"
@@ -172,10 +181,32 @@ async def _embed_chunks_async(chunk_ids: List[str]) -> Dict[str, Any]:
 
         await session.commit()
 
+        # Mark documents as indexed once all their chunks are active.
+        doc_ids = {c.doc_id for c in chunks}
+        for doc_id in doc_ids:
+            pending_count = await session.scalar(
+                select(func.count(Chunk.id)).where(
+                    Chunk.doc_id == doc_id,
+                    Chunk.status != "active",
+                )
+            )
+            if pending_count == 0:
+                doc = await session.get(Document, doc_id)
+                if doc is not None:
+                    doc.status = "indexed"
+                    doc.processing_info = {
+                        **(doc.processing_info or {}),
+                        "stage": "completed",
+                        "message": "Embedding finished",
+                    }
+        await session.commit()
+    finally:
+        await session.close()
+
     return {"embedded": len(chunks)}
 
 
-async def _call_embedding_service(
+def _call_embedding_service(
     payloads: List[Dict[str, Any]],
 ) -> List[List[float]]:
     """Call the user-provided embedding HTTP endpoint."""
@@ -185,9 +216,9 @@ async def _call_embedding_service(
     url = settings.EMBEDDING_SERVICE_URL
     timeout = 300.0
 
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    with httpx.Client(timeout=timeout) as client:
         try:
-            response = await client.post(
+            response = client.post(
                 url,
                 json={"items": payloads},
                 headers={"Content-Type": "application/json"},

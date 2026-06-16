@@ -17,6 +17,7 @@ import boto3
 from botocore.exceptions import ClientError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.models.chunk import Chunk
@@ -30,18 +31,25 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-async_engine = create_async_engine(
-    settings.async_database_url,
-    echo=False,
-    future=True,
-)
-AsyncSessionLocal = async_sessionmaker(
-    async_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,
-    autocommit=False,
-)
+def _create_async_session() -> AsyncSession:
+    """Create a fresh async engine bound to the current process.
+
+    Creating the engine inside the task avoids asyncpg connections being
+    inherited across Celery prefork worker forks.
+    """
+    engine = create_async_engine(
+        settings.async_database_url,
+        echo=False,
+        future=True,
+        poolclass=NullPool,
+    )
+    return async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False,
+    )()
 
 
 def _build_s3_client():
@@ -69,7 +77,9 @@ def process_document(self, doc_id: str) -> Dict[str, Any]:
 
 
 async def _process_document_async(doc_id: str) -> Dict[str, Any]:
-    async with AsyncSessionLocal() as session:
+    session = _create_async_session()
+    chunk_ids: List[str] = []
+    try:
         document = await session.get(Document, UUID(doc_id))
         if document is None:
             raise ValueError(f"Document {doc_id} not found")
@@ -99,7 +109,7 @@ async def _process_document_async(doc_id: str) -> Dict[str, Any]:
 
         # Parse chunks.
         raw_chunks = pipeline.process(
-            file_path,
+            str(file_path),
             doc_id,
             metadata=dict(document.metadata_ or {}),
         )
@@ -172,6 +182,8 @@ async def _process_document_async(doc_id: str) -> Dict[str, Any]:
             },
         }
         await session.commit()
+    finally:
+        await session.close()
 
     # Enqueue embedding task after the transaction is committed.
     from app.workers.embed_tasks import embed_chunks
@@ -219,7 +231,8 @@ def _resolve_file_type(document: Document) -> str:
 async def _mark_failed(
     doc_id: str, error: str, extra: Dict[str, Any] | None = None
 ) -> None:
-    async with AsyncSessionLocal() as session:
+    session = _create_async_session()
+    try:
         document = await session.get(Document, UUID(doc_id))
         if document is None:
             return
@@ -231,3 +244,5 @@ async def _mark_failed(
             **(extra or {}),
         }
         await session.commit()
+    finally:
+        await session.close()

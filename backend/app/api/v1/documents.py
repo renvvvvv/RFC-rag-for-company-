@@ -14,7 +14,7 @@ from app.core.exceptions import ValidationException
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-@router.post("/", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
     kb_id: UUID = Form(...),
     file: UploadFile = File(...),

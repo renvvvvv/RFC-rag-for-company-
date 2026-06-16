@@ -1,5 +1,5 @@
 """Application settings loaded from environment variables."""
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -54,7 +54,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
     # Model service endpoints
-    EMBEDDING_SERVICE_URL: str = "http://localhost:8001/embed"
+    EMBEDDING_SERVICE_URL: str = Field(
+        default="http://localhost:8001/embed",
+        validation_alias=AliasChoices("EMBEDDING_SERVICE_URL", "EMBEDDING_MODEL_URL"),
+    )
     EMBEDDING_API_URL: str | None = None
     EMBEDDING_MODEL: str = "text-embedding-3-large"
     EMBEDDING_API_KEY: str | None = None
