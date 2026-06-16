@@ -76,3 +76,8 @@ stop_local.py
 backend.log
 worker.log
 frontend.log
+
+# Test artifacts / temporary reports
+.tmp/
+*-test-report.md
+scripts/test_network_dns.sh

@@ -1,1 +1,0 @@
-{"status":"ok","services":{"postgres":{"status":"ok","latency_ms":1.93},"redis":{"status":"ok","latency_ms":3.99},"rabbitmq":{"status":"ok","latency_ms":6.55},"milvus":{"status":"ok","latency_ms":209.1},"minio":{"status":"ok","latency_ms":22.27}}}
