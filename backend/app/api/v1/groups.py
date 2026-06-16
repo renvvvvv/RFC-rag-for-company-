@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.services.group_service import GroupService
-from app.services.auth_service import AuthService
+from app.api.v1.auth import get_current_user
 from app.schemas.group import (
     UserGroupCreate, UserGroupUpdate, UserGroupResponse, GroupMemberOperation
 )
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/groups", tags=["用户群"])
 async def create_group(
     group_data: UserGroupCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: UserResponse = Depends(AuthService.get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     service = GroupService(db)
     group = await service.create_group(group_data, current_user.id)

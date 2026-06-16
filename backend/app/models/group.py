@@ -4,6 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -71,3 +72,11 @@ class UserGroup(Base):
         server_default=func.now(),
         comment="创建时间",
     )
+
+    @hybrid_property
+    def member_count(self) -> int:
+        return len(self.member_ids or [])
+
+    @hybrid_property
+    def admin_count(self) -> int:
+        return len(self.admin_ids or [])
