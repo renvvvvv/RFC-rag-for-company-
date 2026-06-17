@@ -81,3 +81,8 @@ frontend.log
 .tmp/
 *-test-report.md
 scripts/test_network_dns.sh
+scripts/perf/results/
+scripts/perf/*.log
+frontend/playwright/.auth/
+frontend/test-results/
+frontend/playwright-report/

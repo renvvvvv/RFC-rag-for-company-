@@ -218,6 +218,11 @@ class PermissionService:
         )
         perms = result.scalars().all()
 
+        # If no field permissions are configured for this document, default to
+        # allowing access so that normal retrieval is not blocked.
+        if not perms:
+            return True
+
         explicitly_allowed = False
         for perm in perms:
             is_denied = user_id_str in (perm.denied_users or []) or any(

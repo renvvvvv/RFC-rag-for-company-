@@ -15,7 +15,7 @@ from uuid import UUID
 
 import boto3
 from botocore.exceptions import ClientError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -144,6 +144,7 @@ async def _process_document_async(doc_id: str) -> Dict[str, Any]:
                 position_info=raw.get("position_info") or {},
                 metadata_={},
                 status="pending",
+                content_tsv=func.to_tsvector("simple", raw["content"]),
             )
             await keyword_svc.annotate_chunk(chunk)
             chunk_meta = {

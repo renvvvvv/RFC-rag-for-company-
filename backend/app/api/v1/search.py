@@ -61,7 +61,11 @@ def _build_search_response(
                 doc_id=r.get("doc_id", ""),
                 content=r.get("content", ""),
                 modality=r.get("modality", "text"),
-                score=r.get("rerank_score") if "rerank_score" in r else r.get("score", 0.0),
+                score=(
+                    r.get("rerank_score")
+                    if r.get("rerank_score") is not None
+                    else r.get("score", 0.0)
+                ),
                 rerank_score=r.get("rerank_score"),
                 max_keyword_level=r.get("max_keyword_level", "L0"),
                 filtered=r.get("filtered", False),
