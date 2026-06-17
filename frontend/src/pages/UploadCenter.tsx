@@ -137,11 +137,16 @@ const UploadCenter = () => {
       return
     }
     try {
-      await api.post('/v1/documents/link', {
-        kb_id: selectedKb,
-        ...values,
-        metadata: { title: values.url },
-      })
+      await api.post(
+        '/v1/documents/link',
+        {
+          ...values,
+          metadata: { title: values.url },
+        },
+        {
+          params: new URLSearchParams({ kb_id: selectedKb }),
+        }
+      )
       message.success('链接提交成功')
       linkForm.resetFields()
       fetchDocs()

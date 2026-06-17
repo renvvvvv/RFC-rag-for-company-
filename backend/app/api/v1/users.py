@@ -4,14 +4,19 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.api.v1.auth import get_current_user, is_admin
+from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
-from app.api.v1.auth import get_current_user
 from app.services.auth_service import AuthService
-from app.core.exceptions import NotFoundException, ValidationException
 
 router = APIRouter(prefix="/users", tags=["用户管理"])
+
+
+def _require_admin(current_user: UserResponse) -> None:
+    if not is_admin(current_user):
+        raise PermissionDeniedException("需要管理员权限")
 
 
 @router.get("", response_model=List[UserResponse])
@@ -21,7 +26,8 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """列出用户"""
+    """列出用户（管理员）"""
+    _require_admin(current_user)
     result = await db.execute(select(User).offset(skip).limit(limit))
     users = result.scalars().all()
     return [UserResponse.model_validate(u) for u in users]
@@ -33,10 +39,12 @@ async def get_user(
     db: AsyncSession = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """获取用户信息"""
+    """获取用户信息（管理员或本人）"""
     user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if not is_admin(current_user) and str(current_user.id) != str(user_id):
+        raise PermissionDeniedException("没有权限查看该用户")
     return UserResponse.model_validate(user)
 
 
@@ -47,6 +55,7 @@ async def create_user(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """创建用户（管理员入口，与 /auth/register 等价）"""
+    _require_admin(current_user)
     auth_service = AuthService(db)
     try:
         user = await auth_service.create_user(user_data)
@@ -62,7 +71,8 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """更新用户信息：角色、部门、显示名、激活状态等"""
+    """更新用户信息：角色、部门、显示名、激活状态等（管理员）"""
+    _require_admin(current_user)
     user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -92,7 +102,8 @@ async def delete_user(
     db: AsyncSession = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """删除用户"""
+    """删除用户（管理员）"""
+    _require_admin(current_user)
     user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

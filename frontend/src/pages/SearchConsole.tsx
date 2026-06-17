@@ -212,6 +212,7 @@ const SearchConsole = () => {
       setMessages((prev) => [
         ...prev,
         {
+          id: crypto.randomUUID(),
           role: 'assistant',
           content: data.answer,
           sources: data.sources,

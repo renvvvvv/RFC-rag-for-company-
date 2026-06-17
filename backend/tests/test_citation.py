@@ -167,6 +167,7 @@ def test_chat_api_sources_include_position_info(
     mock_conv_service, mock_gen_service, mock_security, mock_retrieval, chat_client
 ):
     mock_retrieval.search = AsyncMock(return_value=[_chunk_with_position()])
+    mock_security.detect_prompt_injection.return_value = False
     mock_security.decide_api_strategy = AsyncMock(
         return_value={
             "strategy": "direct_api",
@@ -209,6 +210,7 @@ def test_chat_api_sources_expose_position_info(
     mock_conv_service, mock_gen_service, mock_security, mock_retrieval, chat_client
 ):
     mock_retrieval.search = AsyncMock(return_value=[_chunk_with_position()])
+    mock_security.detect_prompt_injection.return_value = False
     mock_security.decide_api_strategy = AsyncMock(
         return_value={
             "strategy": "direct_api",

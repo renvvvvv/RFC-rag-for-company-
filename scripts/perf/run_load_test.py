@@ -9,7 +9,7 @@ Environment variables:
     RAG_SPAWN_RATE      Users spawned per second (default: 5)
     RAG_DURATION        Test duration in seconds (default: 60)
     RAG_ADMIN_USER      Admin username (default: admin)
-    RAG_ADMIN_PASS      Admin password (default: admin123)
+    RAG_ADMIN_PASS      Admin password (no default; required)
     RAG_CSV_PREFIX      CSV stats prefix (default: scripts/perf/results/locust)
 """
 from __future__ import annotations

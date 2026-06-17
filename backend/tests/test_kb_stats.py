@@ -11,13 +11,29 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.api.v1 import knowledge_bases as kb_api
+from app.api.v1.auth import get_current_user
 from app.core.exceptions import NotFoundException
 from app.models.document import Document
 from app.models.knowledge_base import KnowledgeBase
 from app.schemas.knowledge_base import KnowledgeBaseStats
+from app.schemas.user import UserResponse
 
 
 KB_ID = uuid.uuid4()
+FAKE_USER_ID = uuid.uuid4()
+
+
+def _make_current_user():
+    return UserResponse(
+        id=FAKE_USER_ID,
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+        department="Engineering",
+        security_level="L2",
+        status="active",
+        is_active=True,
+    )
 
 
 def _make_kb(**overrides):
@@ -28,7 +44,7 @@ def _make_kb(**overrides):
         "description": "A test knowledge base",
         "config": {},
         "status": "active",
-        "owner_id": None,
+        "owner_id": FAKE_USER_ID,
         "created_at": now,
     }
     defaults.update(overrides)
@@ -45,6 +61,7 @@ def api_client(mock_db):
     app = FastAPI()
     app.include_router(kb_api.router, prefix="/api/v1")
     app.dependency_overrides[kb_api.get_db] = lambda: mock_db
+    app.dependency_overrides[get_current_user] = _make_current_user
 
     @app.exception_handler(NotFoundException)
     async def not_found_handler(request, exc):

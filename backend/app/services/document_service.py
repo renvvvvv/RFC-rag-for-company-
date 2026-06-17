@@ -1,7 +1,10 @@
+import logging
 import uuid
 from typing import List, Optional
 from uuid import UUID
-from sqlalchemy import select, func
+from sqlalchemy import select, delete, func
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
 import boto3
 from botocore.config import Config
@@ -10,6 +13,8 @@ from app.models.chunk import Chunk
 from app.schemas.document import DocumentLinkCreate
 from app.config import settings
 from app.core.exceptions import NotFoundException
+from app.retrieval.milvus_client import milvus_store
+from app.retrieval.meilisearch_client import meilisearch_store
 
 class DocumentService:
     def __init__(self, db: AsyncSession):
@@ -134,22 +139,38 @@ class DocumentService:
         items = result.scalars().all()
         return total, items
     
+    async def _delete_chunks_and_vectors(self, doc_id: UUID) -> None:
+        """删除文档关联的 Chunk、向量库和全文索引记录。"""
+        await self.db.execute(
+            delete(Chunk).where(Chunk.doc_id == doc_id)
+        )
+        try:
+            milvus_store.delete_by_doc_id(str(doc_id))
+        except Exception as exc:
+            logger.warning("Failed to delete Milvus records for doc_id=%s: %s", doc_id, exc)
+        try:
+            meilisearch_store.delete_by_doc_id(str(doc_id))
+        except Exception as exc:
+            logger.warning("Failed to delete Meilisearch records for doc_id=%s: %s", doc_id, exc)
+
     async def delete_document(self, doc_id: UUID):
         doc = await self.get_document(doc_id)
-        
+
         # 删除MinIO文件
         try:
             self.s3.delete_object(Bucket=self.bucket, Key=doc.storage_key)
         except Exception:
             pass
-        
-        # 删除Chunk记录
-        await self.db.execute(
-            select(Chunk).where(Chunk.doc_id == str(doc_id))
-        )
-        # 注：Chunk删除和向量删除需要额外处理
-        
+
+        await self._delete_chunks_and_vectors(doc_id)
+
         await self.db.delete(doc)
+        await self.db.commit()
+
+    async def clear_document_index(self, doc_id: UUID):
+        """清理文档的旧片段和索引，用于重新处理前避免重复。"""
+        await self.get_document(doc_id)
+        await self._delete_chunks_and_vectors(doc_id)
         await self.db.commit()
     
     async def update_status(

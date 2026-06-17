@@ -50,7 +50,7 @@ def test_health_degraded(client):
 
         response = client.get("/api/v1/health")
 
-    assert response.status_code == 200
+    assert response.status_code == 503
     data = response.json()
     assert data["status"] == "degraded"
     for service in ("postgres", "redis", "rabbitmq", "milvus", "minio"):

@@ -40,6 +40,18 @@ services:
   # ------------------------------------------------------------------
   # Application backend
   # ------------------------------------------------------------------
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rag-${DEPLOY_COLOR:-blue}-migrate
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://rag_user:rag_password@postgres:5432/rag_kb}
+    command: ["sh", "-c", "alembic upgrade head"]
+    networks:
+      - rag-network
+    restart: on-failure
+
   app-backend:
     build:
       context: ./backend
@@ -52,7 +64,7 @@ services:
       PORT: "8080"
       DATABASE_URL: ${DATABASE_URL:-postgresql://rag_user:rag_password@postgres:5432/rag_kb}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rag_user:rag_password@rabbitmq:5672/}
       MILVUS_HOST: ${MILVUS_HOST:-milvus-standalone}
       MILVUS_PORT: ${MILVUS_PORT:-19530}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
@@ -67,6 +79,9 @@ services:
     # Infrastructure services live in docker-compose.infra.yml and must be
     # started before the application layer. They are reachable via the shared
     # external network "rag-network".
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     networks:
       - rag-network
     healthcheck:
@@ -111,13 +126,16 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://rag_user:rag_password@postgres:5432/rag_kb}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rag_user:rag_password@rabbitmq:5672/}
       MILVUS_HOST: ${MILVUS_HOST:-milvus-standalone}
       MILVUS_PORT: ${MILVUS_PORT:-19530}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-rag-documents}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     networks:
       - rag-network
 
@@ -130,7 +148,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://rag_user:rag_password@postgres:5432/rag_kb}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rag_user:rag_password@rabbitmq:5672/}
       MILVUS_HOST: ${MILVUS_HOST:-milvus-standalone}
       MILVUS_PORT: ${MILVUS_PORT:-19530}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
@@ -149,7 +167,10 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://rag_user:rag_password@postgres:5432/rag_kb}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rag_user:rag_password@rabbitmq:5672/}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     networks:
       - rag-network
 

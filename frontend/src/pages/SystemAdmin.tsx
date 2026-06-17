@@ -201,7 +201,7 @@ const SystemAdmin = () => {
       children: (
         <DataCard title="模型服务配置">
           <Alert
-            message="修改后需重启后端服务生效"
+            message="配置已保存并立即生效"
             type="info"
             showIcon
             style={{ marginBottom: 16, background: '#eff6ff' }}

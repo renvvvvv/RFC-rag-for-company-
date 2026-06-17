@@ -152,6 +152,16 @@ async def delete_conversation(
     return None
 
 
+def _blocked_response(request: ChatRequest) -> ChatResponse:
+    return ChatResponse(
+        answer="检测到提示注入攻击，请求已被拦截。",
+        intercepted=True,
+        sources=[],
+        strategy={"strategy": "blocked", "reason": "prompt injection detected"},
+        conversation_id=request.conversation_id,
+    )
+
+
 @router.post("", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
@@ -159,6 +169,12 @@ async def chat(
     current_user: UserResponse = Depends(get_current_user),
 ):
     """非流式问答，支持 conversation_id 多轮对话。"""
+    if security_gateway.detect_prompt_injection(request.query):
+        return _blocked_response(request)
+
+    if request.stream:
+        return await chat_stream(request, db, current_user)
+
     conversation_id = request.conversation_id
     history = None
     kb_ids = request.kb_ids
@@ -256,6 +272,10 @@ async def chat_stream(
         )
 
     async def event_generator():
+        if security_gateway.detect_prompt_injection(request.query):
+            yield {"data": "检测到提示注入攻击，请求已被拦截。"}
+            return
+
         chunks = await retrieval_service.search(
             db=db,
             user_id=current_user.id,

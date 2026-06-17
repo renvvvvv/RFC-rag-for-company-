@@ -4,6 +4,7 @@ import time
 from typing import Any, Dict
 
 from fastapi import APIRouter, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.config import settings
@@ -101,7 +102,7 @@ async def _check_minio() -> Dict[str, Any]:
         return {"status": "unavailable", "error": str(exc)}
 
 
-@router.get("/health", status_code=status.HTTP_200_OK)
+@router.get("/health")
 async def health_check():
     services = {
         "postgres": await _check_postgres(),
@@ -110,8 +111,8 @@ async def health_check():
         "milvus": await _check_milvus(),
         "minio": await _check_minio(),
     }
-    overall = "ok" if all(s["status"] == "ok" for s in services.values()) else "degraded"
-    return {
-        "status": overall,
-        "services": services,
-    }
+    healthy = all(s["status"] == "ok" for s in services.values())
+    body = {"status": "ok" if healthy else "degraded", "services": services}
+    if healthy:
+        return body
+    return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=body)

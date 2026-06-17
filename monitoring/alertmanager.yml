@@ -1,20 +1,22 @@
 global:
-  smtp_smarthost: 'localhost:25'
-  smtp_from: 'alertmanager@example.com'
-  smtp_require_tls: false
+  # No SMTP is configured by default. Configure these for email receivers.
+  # smtp_smarthost: 'localhost:25'
+  # smtp_from: 'alertmanager@example.com'
+  # smtp_require_tls: false
 
 # Default receiver for all alerts unless matched by a route.
 receivers:
   - name: default
-    email_configs:
-      - to: 'oncall@example.com'
-        send_resolved: true
+    # Placeholder webhook that keeps Alertmanager starting even when no real
+    # notification endpoint is available. Replace with PagerDuty/Slack/email/etc.
+    webhook_configs:
+      - url: 'http://127.0.0.1:5001/_alertmanager/webhook'
+        send_resolved: false
 
   - name: critical
-    pagerduty_configs: []
-    slack_configs: []
-
-  - name: null
+    webhook_configs:
+      - url: 'http://127.0.0.1:5001/_alertmanager/webhook'
+        send_resolved: false
 
 route:
   receiver: default

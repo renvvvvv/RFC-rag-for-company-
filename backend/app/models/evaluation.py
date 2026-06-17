@@ -43,6 +43,12 @@ class EvaluationDataset(Base):
         nullable=False,
         comment="标准答案与相关片段ID列表",
     )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="创建用户ID",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -91,6 +97,12 @@ class EvaluationTask(Base):
         default=lambda: {},
         nullable=False,
         comment="评测结果",
+    )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="创建用户ID",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

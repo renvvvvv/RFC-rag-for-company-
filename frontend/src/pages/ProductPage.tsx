@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Typography,
   Card,
@@ -301,6 +302,7 @@ curl -X POST http://localhost:8000/api/v1/search \\
 ]
 
 const ProductPage = () => {
+  const navigate = useNavigate()
   const [activeAuthTab, setActiveAuthTab] = useState('kong')
 
   return (
@@ -604,6 +606,7 @@ const ProductPage = () => {
             size="large"
             icon={<MessageOutlined />}
             style={{ background: accentColor, borderColor: accentColor, borderRadius: 6 }}
+            onClick={() => navigate('/')}
           >
             进入知识库
           </Button>

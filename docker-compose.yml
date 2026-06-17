@@ -40,6 +40,23 @@ services:
   # ------------------------------------------------------------------
   # Application backend (placeholder build, will be replaced by real FastAPI)
   # ------------------------------------------------------------------
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rag-migrate
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://rag_user:rag_password@postgres:5432/rag_kb}
+    volumes:
+      - ./backend/.env:/app/.env:ro
+    command: ["sh", "-c", "alembic upgrade head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rag-network
+    restart: on-failure
+
   app-backend:
     build:
       context: ./backend
@@ -52,7 +69,7 @@ services:
       PORT: "8080"
       DATABASE_URL: ${DATABASE_URL:-postgresql://rag_user:rag_password@postgres:5432/rag_kb}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rag_user:rag_password@rabbitmq:5672/}
       MILVUS_HOST: ${MILVUS_HOST:-milvus-standalone}
       MILVUS_PORT: ${MILVUS_PORT:-19530}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
@@ -69,6 +86,8 @@ services:
     volumes:
       - ./backend/.env:/app/.env
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -100,7 +119,7 @@ services:
       WORKER_QUEUE: ingest
       DATABASE_URL: ${DATABASE_URL:-postgresql://rag_user:rag_password@postgres:5432/rag_kb}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rag_user:rag_password@rabbitmq:5672/}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
@@ -110,6 +129,8 @@ services:
     volumes:
       - ./backend/.env:/app/.env:ro
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       postgres:
@@ -166,7 +187,7 @@ services:
       WORKER_QUEUE: embed
       DATABASE_URL: ${DATABASE_URL:-postgresql://rag_user:rag_password@postgres:5432/rag_kb}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rag_user:rag_password@rabbitmq:5672/}
       MILVUS_HOST: ${MILVUS_HOST:-milvus-standalone}
       MILVUS_PORT: ${MILVUS_PORT:-19530}
       EMBEDDING_MODEL_URL: ${EMBEDDING_MODEL_URL:-http://embedding-service:8080}
@@ -192,10 +213,12 @@ services:
       WORKER_QUEUE: permission_sync
       DATABASE_URL: ${DATABASE_URL:-postgresql://rag_user:rag_password@postgres:5432/rag_kb}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rag_user:rag_password@rabbitmq:5672/}
     volumes:
       - ./backend/.env:/app/.env:ro
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       postgres:
@@ -254,6 +277,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: rag-redis
+    command: redis-server --appendonly yes --appendfsync everysec
     volumes:
       - redis_data:/data
     ports:
@@ -271,8 +295,9 @@ services:
     image: rabbitmq:3-management
     container_name: rag-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-rag_user}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rag_password}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST:-/}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     ports:
@@ -346,7 +371,7 @@ services:
   # Object storage
   # ------------------------------------------------------------------
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
     container_name: rag-minio
     command: server /data --console-address ":9001"
     environment:
@@ -367,7 +392,7 @@ services:
       start_period: 15s
 
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2024-06-12T14-34-03Z
     container_name: rag-minio-init
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
@@ -387,7 +412,7 @@ services:
   # Observability
   # ------------------------------------------------------------------
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.53.0
     container_name: rag-prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -408,12 +433,14 @@ services:
       retries: 5
 
   alertmanager:
-    image: prom/alertmanager:latest
+    image: prom/alertmanager:v0.27.0
     container_name: rag-alertmanager
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
     volumes:
       - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
     ports:
       - "9093:9093"
     networks:
@@ -425,7 +452,7 @@ services:
       retries: 5
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.4.4
     container_name: rag-grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
@@ -507,6 +534,7 @@ volumes:
   minio_data:
   prometheus_data:
   grafana_data:
+  alertmanager_data:
 
 networks:
   rag-network:

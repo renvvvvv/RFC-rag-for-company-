@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.auth import get_current_user
 from app.core.exceptions import NotFoundException, ValidationException
 from app.database import get_db
 from app.models.chunk import Chunk
@@ -16,6 +17,7 @@ from app.schemas.keyword import (
     SensitiveScanRequest,
     SensitiveScanResponse,
 )
+from app.schemas.user import UserResponse
 from app.services.keyword_service import KeywordService
 from app.services.sensitive_info_service import SensitiveInfoService
 
@@ -33,6 +35,7 @@ async def list_keywords(
     category: Optional[str] = Query(None, description="按分类过滤"),
     level: Optional[str] = Query(None, description="按敏感等级过滤，如 L1"),
     service: KeywordService = Depends(get_keyword_service),
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """List sensitive keywords with optional filters."""
     if level and level not in {"L0", "L1", "L2", "L3", "L4"}:
@@ -48,6 +51,7 @@ async def list_keywords(
 async def create_keyword(
     data: SensitiveKeywordCreate,
     service: KeywordService = Depends(get_keyword_service),
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """Create a new sensitive keyword."""
     return await service.create_keyword(data)
@@ -58,6 +62,7 @@ async def update_keyword(
     keyword_id: UUID,
     data: SensitiveKeywordUpdate,
     service: KeywordService = Depends(get_keyword_service),
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """Update an existing sensitive keyword."""
     try:
@@ -70,6 +75,7 @@ async def update_keyword(
 async def delete_keyword(
     keyword_id: UUID,
     service: KeywordService = Depends(get_keyword_service),
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """Delete a sensitive keyword."""
     await service.delete_keyword(keyword_id)
@@ -84,6 +90,7 @@ async def delete_keyword(
 async def batch_import_keywords(
     items: List[SensitiveKeywordCreate],
     service: KeywordService = Depends(get_keyword_service),
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """Batch import sensitive keywords."""
     created = []
@@ -96,6 +103,7 @@ async def batch_import_keywords(
 async def scan_text_or_document(
     payload: SensitiveScanRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """Scan provided text or an existing document for sensitive information."""
     svc = SensitiveInfoService(db)

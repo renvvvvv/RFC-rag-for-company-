@@ -6,12 +6,19 @@ from pathlib import Path
 
 import requests
 
-BASE_URL = "http://localhost:8080"
+BASE_URL = os.environ.get("RAG_API_URL", "http://localhost:8080")
 SAMPLES_DIR = Path(__file__).resolve().parent.parent / "samples"
 
-# Default admin credentials from docker-compose environment
-USERNAME = "admin"
-PASSWORD = "admin123"
+# Admin credentials MUST be provided via environment variables.
+USERNAME = os.environ.get("RAG_ADMIN_USER", "admin")
+PASSWORD = os.environ.get("RAG_ADMIN_PASS")
+
+if not PASSWORD:
+    print(
+        "[ERROR] RAG_ADMIN_PASS environment variable is not set. "
+        "Set it to the admin password before running this script."
+    )
+    sys.exit(1)
 
 
 def login() -> str:

@@ -76,8 +76,17 @@ pull_code() {
 
 protect_env() {
   local dir="$1"
+
+  if [ ! -f "$dir/.env" ]; then
+    log "$dir/.env not found, creating from root template."
+    cp "$dir/.env.example" "$dir/.env"
+    log "WARNING: please edit $dir/.env with real credentials."
+  else
+    log "$dir/.env exists, preserving it."
+  fi
+
   if [ ! -f "$dir/backend/.env" ]; then
-    log "$dir/backend/.env not found, creating from template."
+    log "$dir/backend/.env not found, creating from backend template."
     cp "$dir/backend/.env.example" "$dir/backend/.env"
     log "WARNING: please edit $dir/backend/.env with real credentials."
   else

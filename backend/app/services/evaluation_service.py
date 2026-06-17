@@ -83,6 +83,7 @@ class EvaluationService:
         name: str,
         questions: List[str],
         ground_truths: List[Dict[str, Any]],
+        created_by: Optional[UUID] = None,
     ) -> EvaluationDataset:
         """Create an evaluation dataset."""
         dataset = EvaluationDataset(
@@ -90,6 +91,7 @@ class EvaluationService:
             name=name,
             questions=questions or [],
             ground_truths=ground_truths or [],
+            created_by=created_by,
         )
         db.add(dataset)
         await db.commit()
@@ -101,9 +103,13 @@ class EvaluationService:
         db: AsyncSession,
         skip: int = 0,
         limit: int = 100,
+        created_by: Optional[UUID] = None,
     ) -> List[EvaluationDataset]:
         """List evaluation datasets."""
-        stmt = select(EvaluationDataset).offset(skip).limit(limit)
+        stmt = select(EvaluationDataset)
+        if created_by is not None:
+            stmt = stmt.where(EvaluationDataset.created_by == created_by)
+        stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())
 
@@ -119,6 +125,7 @@ class EvaluationService:
         dataset_id: UUID,
         kb_id: UUID,
         metrics: Optional[List[str]] = None,
+        created_by: Optional[UUID] = None,
     ) -> EvaluationTask:
         """Create an evaluation task record."""
         task = EvaluationTask(
@@ -127,6 +134,7 @@ class EvaluationService:
             status="pending",
             metrics=metrics or _DEFAULT_METRICS,
             results={},
+            created_by=created_by,
         )
         db.add(task)
         await db.commit()
@@ -138,9 +146,13 @@ class EvaluationService:
         db: AsyncSession,
         skip: int = 0,
         limit: int = 100,
+        created_by: Optional[UUID] = None,
     ) -> List[EvaluationTask]:
         """List evaluation tasks."""
-        stmt = select(EvaluationTask).offset(skip).limit(limit)
+        stmt = select(EvaluationTask)
+        if created_by is not None:
+            stmt = stmt.where(EvaluationTask.created_by == created_by)
+        stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())
 

@@ -22,7 +22,7 @@ RUNTIME_MODEL_CONFIG: Dict[str, Optional[str]] = {
     "RERANK_API_URL": settings.RERANK_API_URL or settings.RERANK_SERVICE_URL,
     "RERANK_MODEL": settings.RERANK_MODEL,
     "RERANK_API_KEY": settings.RERANK_API_KEY,
-    "LLM_API_URL": settings.LLM_API_URL or settings.MINIMAX_BASE_URL,
+    "LLM_API_URL": settings.LLM_API_URL,
     "LLM_MODEL": settings.LLM_MODEL,
     "LLM_API_KEY": settings.LLM_API_KEY or settings.MINIMAX_API_KEY,
     "MINIMAX_API_KEY": settings.MINIMAX_API_KEY,

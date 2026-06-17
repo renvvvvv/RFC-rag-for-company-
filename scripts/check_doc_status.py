@@ -1,12 +1,23 @@
 """Check document indexing status for recently uploaded files."""
+import os
 import sys
 import time
 from pathlib import Path
 
 import requests
 
-BASE_URL = "http://localhost:8080"
+BASE_URL = os.environ.get("RAG_API_URL", "http://localhost:8080")
 SAMPLES_DIR = Path(__file__).resolve().parent.parent / "samples"
+
+ADMIN_USER = os.environ.get("RAG_ADMIN_USER", "admin")
+ADMIN_PASS = os.environ.get("RAG_ADMIN_PASS")
+
+if not ADMIN_PASS:
+    print(
+        "[ERROR] RAG_ADMIN_PASS environment variable is not set. "
+        "Set it to the admin password before running this script."
+    )
+    sys.exit(1)
 
 
 def list_docs(token: str, kb_id: str) -> list:
@@ -30,7 +41,7 @@ def list_kbs(token: str) -> list:
 def login() -> str:
     resp = requests.post(
         f"{BASE_URL}/api/v1/auth/login",
-        data={"username": "admin", "password": "admin123"},
+        data={"username": ADMIN_USER, "password": ADMIN_PASS},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     resp.raise_for_status()

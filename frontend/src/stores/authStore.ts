@@ -7,6 +7,7 @@ export interface User {
   email: string
   department?: string
   security_level: string
+  role?: string
   role_id?: string | null
   status: string
 }
@@ -20,7 +21,13 @@ interface AuthState {
   logout: () => void
 }
 
-const storedToken = localStorage.getItem('token')
+// Security note: httpOnly cookies are the ideal storage for JWTs because they
+// are inaccessible to JavaScript and mitigate XSS token exfiltration.
+// sessionStorage is used for runtime tokens so they are cleared when the tab
+// closes. The optional __playwright_token__ localStorage key is only used by
+// E2E tests because Playwright's storageState cannot capture sessionStorage.
+const storedToken =
+  sessionStorage.getItem('token') || localStorage.getItem('__playwright_token__') || null
 
 export const useAuthStore = create<AuthState>()(
   immer((set) => ({
@@ -31,7 +38,7 @@ export const useAuthStore = create<AuthState>()(
       set((state) => {
         state.token = token
         state.isAuthenticated = true
-        localStorage.setItem('token', token)
+        sessionStorage.setItem('token', token)
       }),
     setUser: (user) =>
       set((state) => {
@@ -42,7 +49,8 @@ export const useAuthStore = create<AuthState>()(
         state.token = null
         state.isAuthenticated = false
         state.user = null
-        localStorage.removeItem('token')
+        sessionStorage.removeItem('token')
+        localStorage.removeItem('__playwright_token__')
       }),
   }))
 )

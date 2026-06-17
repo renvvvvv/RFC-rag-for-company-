@@ -37,7 +37,14 @@ SAMPLES_DIR = PROJECT_ROOT / "samples"
 
 BASE_URL = os.environ.get("RAG_API_URL", "http://localhost:8080")
 ADMIN_USER = os.environ.get("RAG_ADMIN_USER", "admin")
-ADMIN_PASS = os.environ.get("RAG_ADMIN_PASS", "admin123")
+ADMIN_PASS = os.environ.get("RAG_ADMIN_PASS")
+
+if not ADMIN_PASS:
+    print(
+        "[ERROR] RAG_ADMIN_PASS environment variable is not set. "
+        "Set it to the admin password before running this script."
+    )
+    sys.exit(1)
 
 EVAL_KB_NAME = "retrieval-eval-kb"
 EVAL_KB_DESC = "Dedicated knowledge base for retrieval quality evaluation"

@@ -1,11 +1,12 @@
 """FastAPI application entry point."""
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from prometheus_client import make_asgi_app
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -140,13 +141,26 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
 
 
 # Prometheus metrics endpoint
-app.mount("/metrics", make_asgi_app())
+@app.get("/metrics")
+async def metrics() -> Response:
+    """Expose Prometheus metrics."""
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-# CORS
+# CORS — never combine allow_origins=["*"] with allow_credentials=True.
+# Parse CORS_ORIGINS as a comma-separated list; default to the frontend dev origin.
+cors_origins_env = os.environ.get("CORS_ORIGINS", settings.CORS_ORIGINS or "")
+if cors_origins_env.strip():
+    allow_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+    allow_credentials = settings.CORS_ALLOW_CREDENTIALS
+else:
+    # No origins explicitly configured: restrict to the default frontend origin.
+    allow_origins = ["http://localhost:5173"]
+    allow_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=allow_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

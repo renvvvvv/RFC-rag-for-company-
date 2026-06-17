@@ -5,16 +5,51 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form, status, HTTPExce
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
 from app.api.v1.auth import get_current_user
-from app.schemas.user import UserResponse
+from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
+from app.database import get_db
+from app.models.knowledge_base import KnowledgeBase
 from app.schemas.document import DocumentResponse, DocumentListResponse, DocumentLinkCreate
+from app.schemas.user import UserResponse
 from app.services.document_service import DocumentService
-from app.core.exceptions import NotFoundException
 from app.workers.ingest_tasks import process_document
-from app.core.exceptions import ValidationException
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+
+async def _get_kb(db: AsyncSession, kb_id: UUID) -> KnowledgeBase:
+    kb = await db.get(KnowledgeBase, kb_id)
+    if kb is None:
+        raise NotFoundException(f"知识库 {kb_id} 不存在")
+    return kb
+
+
+async def _require_kb_access(
+    db: AsyncSession,
+    current_user: UserResponse,
+    kb_id: UUID,
+) -> KnowledgeBase:
+    """Verify the current user can access the knowledge base.
+
+    Simple ownership check: the user must be the KB owner. Shared/member access
+    can be added via the permission service later.
+    """
+    kb = await _get_kb(db, kb_id)
+    if kb.owner_id and str(kb.owner_id) != str(current_user.id):
+        raise PermissionDeniedException("没有权限访问该知识库")
+    return kb
+
+
+async def _require_document_access(
+    db: AsyncSession,
+    current_user: UserResponse,
+    doc_id: UUID,
+) -> DocumentResponse:
+    """Verify the current user can access the document's knowledge base."""
+    service = DocumentService(db)
+    doc = await service.get_document(doc_id)
+    await _require_kb_access(db, current_user, doc.kb_id)
+    return doc
 
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
@@ -68,7 +103,8 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """列出知识库下的文档"""
+    """列出知识库下的文档（需要访问权限）"""
+    await _require_kb_access(db, current_user, kb_id)
     service = DocumentService(db)
     total, items = await service.list_documents(kb_id, status, skip, limit)
     return DocumentListResponse(total=total, items=list(items))
@@ -93,7 +129,8 @@ async def download_document(
     db: AsyncSession = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user),
 ):
-    """下载文档原始文件"""
+    """下载文档原始文件（需要访问权限）"""
+    await _require_document_access(db, current_user, doc_id)
     service = DocumentService(db)
     try:
         body, media_type, filename, redirect_url = await service.get_file_stream(doc_id)
@@ -120,7 +157,8 @@ async def preview_document(
     db: AsyncSession = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user),
 ):
-    """在线预览文档原始文件（浏览器支持的格式直接展示）"""
+    """在线预览文档原始文件（浏览器支持的格式直接展示，需要访问权限）"""
+    await _require_document_access(db, current_user, doc_id)
     service = DocumentService(db)
     try:
         body, media_type, filename, redirect_url = await service.get_file_stream(doc_id)
@@ -168,6 +206,8 @@ async def reprocess_document(
 
     if doc.status == "processing":
         raise ValidationException("文档正在处理中，请稍后再试")
+
+    await service.clear_document_index(doc_id)
 
     await service.update_status(
         doc_id,

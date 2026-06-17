@@ -9,7 +9,7 @@ providers:
     updateIntervalSeconds: 10
     allowUiUpdates: true
     options:
-      # Dashboard JSON files are mounted to the same directory as this
-      # provisioning file inside the Grafana container.
-      path: /etc/grafana/provisioning/dashboards
+      # Dashboard JSON files are mounted under this directory inside the
+      # Grafana container so they are not mixed with the provisioning YAML.
+      path: /etc/grafana/provisioning/dashboards/json
       foldersFromFilesStructure: true

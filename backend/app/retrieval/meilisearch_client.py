@@ -205,3 +205,17 @@ class MeilisearchFulltextStore:
         except Exception as exc:
             logger.exception("Meilisearch delete_by_doc_id failed: %s", exc)
             return False
+
+
+# Module-level singleton for convenience.
+meilisearch_store = MeilisearchFulltextStore()
+
+
+# Lazy singleton used by the rest of the application. It will be ``None`` when
+# the ``meilisearch`` package is not installed or the server is unreachable.
+meilisearch_store: MeilisearchFulltextStore | None = None
+if _MEILI_AVAILABLE:
+    try:
+        meilisearch_store = MeilisearchFulltextStore()
+    except Exception:
+        meilisearch_store = None

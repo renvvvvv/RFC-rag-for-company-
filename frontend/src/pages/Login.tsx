@@ -122,14 +122,14 @@ const Login = () => {
             label={<span style={{ color: colors.textSecondary, fontWeight: typography.weights.medium }}>用户名</span>}
             rules={[{ required: true, message: '请输入用户名' }]}
           >
-            <Input placeholder="admin" />
+            <Input placeholder="请输入用户名" />
           </Form.Item>
           <Form.Item
             name="password"
             label={<span style={{ color: colors.textSecondary, fontWeight: typography.weights.medium }}>密码</span>}
             rules={[{ required: true, message: '请输入密码' }]}
           >
-            <Input.Password placeholder="admin123" />
+            <Input.Password placeholder="请输入密码" />
           </Form.Item>
           <Form.Item style={{ marginTop: spacing.lg, marginBottom: 0 }}>
             <Button

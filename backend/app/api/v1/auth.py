@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.config import settings
 from app.database import get_db
 from app.services.auth_service import AuthService
 from app.schemas.user import UserCreate, UserResponse, UserLogin, Token
@@ -9,6 +10,21 @@ from app.core.exceptions import AuthenticationException
 router = APIRouter(prefix="/auth", tags=["认证"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+
+def is_admin(user: UserResponse) -> bool:
+    """Return True if the user is considered an administrator.
+
+    The built-in admin username is always treated as admin; additional usernames
+    can be configured via the ADMIN_USERNAMES environment variable (comma-separated).
+    """
+    admin_names = {
+        name.strip()
+        for name in (settings.ADMIN_USERNAMES or "admin").split(",")
+        if name.strip()
+    }
+    return user.username in admin_names
+
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),

@@ -1,5 +1,5 @@
+import asyncio
 import logging
-import time
 from typing import Any, Dict, List
 
 import httpx
@@ -95,7 +95,7 @@ class RerankClient:
                         e,
                         delay,
                     )
-                    time.sleep(delay)
+                    await asyncio.sleep(delay)
                     continue
                 break
 

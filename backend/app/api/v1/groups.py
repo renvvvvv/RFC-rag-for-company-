@@ -26,14 +26,19 @@ async def create_group(
 async def list_groups(
     skip: int = 0,
     limit: int = 100,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
 ):
     service = GroupService(db)
     groups = await service.list_groups(skip, limit)
     return [UserGroupResponse.model_validate(g) for g in groups]
 
 @router.get("/{group_id}", response_model=UserGroupResponse)
-async def get_group(group_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_group(
+    group_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
     service = GroupService(db)
     group = await service.get_group(group_id)
     return UserGroupResponse.model_validate(group)
@@ -42,14 +47,19 @@ async def get_group(group_id: UUID, db: AsyncSession = Depends(get_db)):
 async def update_group(
     group_id: UUID,
     group_data: UserGroupUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
 ):
     service = GroupService(db)
     group = await service.update_group(group_id, group_data)
     return UserGroupResponse.model_validate(group)
 
 @router.delete("/{group_id}")
-async def delete_group(group_id: UUID, db: AsyncSession = Depends(get_db)):
+async def delete_group(
+    group_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
     service = GroupService(db)
     await service.delete_group(group_id)
     return {"message": "删除成功"}
@@ -58,7 +68,8 @@ async def delete_group(group_id: UUID, db: AsyncSession = Depends(get_db)):
 async def add_members(
     group_id: UUID,
     operation: GroupMemberOperation,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
 ):
     service = GroupService(db)
     await service.add_members(group_id, operation)
@@ -68,7 +79,8 @@ async def add_members(
 async def remove_members(
     group_id: UUID,
     operation: GroupMemberOperation,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
 ):
     service = GroupService(db)
     await service.remove_members(group_id, operation)

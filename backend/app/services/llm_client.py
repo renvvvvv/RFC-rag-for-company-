@@ -18,7 +18,13 @@ class LLMClient:
 
     def _config(self):
         cfg = get_model_config()
-        default_url = f"{cfg.get('MINIMAX_BASE_URL') or settings.MINIMAX_BASE_URL}/v1/chat/completions"
+        base_url = cfg.get("MINIMAX_BASE_URL") or settings.MINIMAX_BASE_URL
+        if base_url:
+            base_url = base_url.rstrip("/")
+            if base_url.endswith("/v1"):
+                base_url = base_url[:-3]
+        default_url = f"{base_url}/v1/chat/completions"
+        # LLM_API_URL is treated as a full endpoint URL and used as-is when set.
         return {
             "api_url": cfg.get("LLM_API_URL") or default_url,
             "model": cfg.get("LLM_MODEL") or settings.LLM_MODEL,

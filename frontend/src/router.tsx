@@ -8,6 +8,7 @@ import EvalWorkbench from '@/pages/EvalWorkbench'
 import PermissionMgr from '@/pages/PermissionMgr'
 import SystemAdmin from '@/pages/SystemAdmin'
 import ProductPage from '@/pages/ProductPage'
+import NotFound from '@/pages/NotFound'
 
 function RequireAuth() {
   const { isAuthenticated } = useAuthStore()
@@ -31,7 +32,7 @@ function AppRouter() {
         <Route path="/permission-mgr" element={<PermissionMgr />} />
         <Route path="/system-admin" element={<SystemAdmin />} />
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

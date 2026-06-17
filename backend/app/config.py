@@ -1,5 +1,8 @@
 """Application settings loaded from environment variables."""
-from pydantic import AliasChoices, Field
+import os
+import warnings
+
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,24 +43,50 @@ class Settings(BaseSettings):
     MILVUS_PORT: int = 19530
     MILVUS_COLLECTION_PREFIX: str = "rag"
 
-    # MinIO (S3-compatible)
+    # MinIO (S3-compatible) — credentials MUST be provided via environment.
+    # No hard-coded defaults remain in code; see .env.example for placeholders.
     MINIO_ENDPOINT: str = "localhost:9000"
-    MINIO_ACCESS_KEY: str = "minioadmin"
-    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_ACCESS_KEY: str
+    MINIO_SECRET_KEY: str
     MINIO_BUCKET: str = "rag-documents"
     MINIO_SECURE: bool = False
 
-    # JWT
+    # JWT — accepts JWT_SECRET_KEY or SECRET_KEY as a fallback.
+    # Generate a strong random value for production (e.g. `openssl rand -hex 32`).
     JWT_SECRET_KEY: str = "change-me-in-production"
-    SECRET_KEY: str | None = None
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
+    # CORS
+    CORS_ORIGINS: str | None = None
+    CORS_ALLOW_CREDENTIALS: bool = True
+
+    # Admin usernames (comma-separated) for elevated management endpoints.
+    ADMIN_USERNAMES: str = "admin"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _load_secret_key_aliases(cls, values):
+        """Allow SECRET_KEY to act as a fallback for JWT_SECRET_KEY."""
+        jwt = values.get("JWT_SECRET_KEY")
+        secret = values.get("SECRET_KEY") or os.environ.get("SECRET_KEY")
+        if (not jwt or jwt == "change-me-in-production") and secret:
+            values["JWT_SECRET_KEY"] = secret
+        return values
+
+    @model_validator(mode="after")
+    def _warn_default_jwt_secret(self):
+        if self.JWT_SECRET_KEY in (None, "", "change-me-in-production"):
+            warnings.warn(
+                "JWT_SECRET_KEY is not set or is using the default value. "
+                "Set JWT_SECRET_KEY (or SECRET_KEY) in the environment before deploying.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        return self
+
     # Model service endpoints
-    EMBEDDING_SERVICE_URL: str = Field(
-        default="http://localhost:8001/embed",
-        validation_alias=AliasChoices("EMBEDDING_SERVICE_URL", "EMBEDDING_MODEL_URL"),
-    )
+    EMBEDDING_SERVICE_URL: str = "http://localhost:8001/embed"
     EMBEDDING_API_URL: str | None = None
     EMBEDDING_MODEL: str = "text-embedding-3-large"
     EMBEDDING_API_KEY: str | None = None

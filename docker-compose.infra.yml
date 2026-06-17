@@ -27,6 +27,9 @@ services:
   redis:
     image: redis:7-alpine
     container_name: rag-redis
+    command: redis-server --appendonly yes --appendfsync everysec
+    volumes:
+      - redis_data:/data
     ports:
       - "6379:6379"
     networks:
@@ -41,17 +44,21 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rag-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-rag_user}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rag_password}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST:-/}
     ports:
       - "5672:5672"
       - "15672:15672"
     networks:
       - rag-network
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 15s
 
   # ------------------------------------------------------------------
   # Vector / object storage
@@ -64,9 +71,11 @@ services:
       - ETCD_AUTO_COMPACTION_RETENTION=1000
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
       - ETCD_SNAPSHOT_COUNT=50000
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
     command:
       - etcd
-      - --advertise-client-urls=http://127.0.0.1:2379
+      - --advertise-client-urls=http://etcd:2379
       - --listen-client-urls=http://0.0.0.0:2379
       - --data-dir=/etcd
     volumes:
@@ -110,7 +119,7 @@ services:
       start_period: 60s
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
     container_name: rag-minio
     command: server /data --console-address ":9001"
     environment:
@@ -131,7 +140,7 @@ services:
       start_period: 10s
 
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2024-06-12T14-34-03Z
     container_name: rag-minio-init
     depends_on:
       minio:
@@ -142,7 +151,6 @@ services:
       /bin/sh -c "
       /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin};
       /usr/bin/mc mb myminio/${MINIO_BUCKET:-rag-documents} || true;
-      /usr/bin/mc policy set public myminio/${MINIO_BUCKET:-rag-documents} || true;
       exit 0;
       "
 
@@ -150,7 +158,7 @@ services:
   # Monitoring
   # ------------------------------------------------------------------
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.53.0
     container_name: rag-prometheus
     ports:
       - "9090:9090"
@@ -166,19 +174,21 @@ services:
       - '--web.enable-lifecycle'
 
   alertmanager:
-    image: prom/alertmanager:latest
+    image: prom/alertmanager:v0.27.0
     container_name: rag-alertmanager
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
     volumes:
       - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
     ports:
       - "9093:9093"
     networks:
       - rag-network
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.4.4
     container_name: rag-grafana
     ports:
       - "3001:3000"
@@ -245,6 +255,7 @@ volumes:
   minio_data:
   prometheus_data:
   grafana_data:
+  alertmanager_data:
 
 networks:
   rag-network:

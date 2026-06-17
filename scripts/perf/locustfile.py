@@ -34,9 +34,15 @@ from locust import FastHttpUser, between, events, task
 # Configuration
 # --------------------------------------------------------------------------- #
 ADMIN_USER = os.environ.get("RAG_ADMIN_USER", "admin")
-ADMIN_PASS = os.environ.get("RAG_ADMIN_PASS", "admin123")
+ADMIN_PASS = os.environ.get("RAG_ADMIN_PASS")
 TEST_USER = os.environ.get("RAG_TEST_USER", "loadtest_user")
 TEST_PASS = os.environ.get("RAG_TEST_PASS", "Test1234!")
+
+if not ADMIN_PASS:
+    raise RuntimeError(
+        "RAG_ADMIN_PASS environment variable is not set. "
+        "Set it to the admin password before running the load test."
+    )
 SAMPLES_DIR = Path(__file__).resolve().parent.parent.parent / "samples"
 SMALL_UPLOAD = Path(__file__).resolve().parent / "loadtest_upload.md"
 

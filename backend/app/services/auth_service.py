@@ -68,12 +68,12 @@ class AuthService:
             "exp": expire,
             "type": "access"
         }
-        secret = settings.SECRET_KEY or settings.JWT_SECRET_KEY
+        secret = settings.JWT_SECRET_KEY
         return jwt.encode(to_encode, secret, algorithm=settings.JWT_ALGORITHM)
     
     async def get_current_user(self, token: str) -> User:
         try:
-            secret = settings.SECRET_KEY or settings.JWT_SECRET_KEY
+            secret = settings.JWT_SECRET_KEY
             payload = jwt.decode(token, secret, algorithms=[settings.JWT_ALGORITHM])
             user_id = payload.get("sub")
             if user_id is None:

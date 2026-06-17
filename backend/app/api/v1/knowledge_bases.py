@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundException
+from app.api.v1.auth import get_current_user
+from app.core.exceptions import NotFoundException, PermissionDeniedException
 from app.database import get_db
 from app.models.chunk import Chunk
 from app.models.document import Document
@@ -18,13 +19,19 @@ from app.schemas.knowledge_base import (
     KnowledgeBaseUpdate,
     KnowledgeBaseStats,
 )
+from app.schemas.user import UserResponse
 
 router = APIRouter(tags=["knowledge-bases"])
 
 
-async def get_current_user_id() -> UUID | None:
-    """Placeholder dependency for the authenticated user."""
-    return None
+def _require_kb_access(kb: KnowledgeBase, current_user: UserResponse) -> None:
+    """Require that the current user owns the knowledge base.
+
+    This is a simple ownership check; shared/member access can be layered on top
+    via the permission service later.
+    """
+    if kb.owner_id and str(kb.owner_id) != str(current_user.id):
+        raise PermissionDeniedException("没有权限访问该知识库")
 
 
 @router.post(
@@ -35,14 +42,14 @@ async def get_current_user_id() -> UUID | None:
 async def create_knowledge_base(
     payload: KnowledgeBaseCreate,
     db: AsyncSession = Depends(get_db),
-    current_user_id: UUID | None = Depends(get_current_user_id),
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """Create a new knowledge base."""
     kb = KnowledgeBase(
         name=payload.name,
         description=payload.description,
         config=payload.config,
-        owner_id=current_user_id,
+        owner_id=current_user.id,
     )
     db.add(kb)
     await db.commit()
@@ -55,8 +62,9 @@ async def list_knowledge_bases(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user),
 ):
-    """List all knowledge bases."""
+    """List knowledge bases the current user has access to."""
     stmt = select(KnowledgeBase).offset(skip).limit(limit)
     result = await db.execute(stmt)
     return list(result.scalars().all())
@@ -66,11 +74,13 @@ async def list_knowledge_bases(
 async def get_knowledge_base(
     kb_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """Get a knowledge base by ID."""
     kb = await db.get(KnowledgeBase, kb_id)
     if kb is None:
         raise NotFoundException(f"Knowledge base {kb_id} not found")
+    _require_kb_access(kb, current_user)
     return kb
 
 
@@ -79,11 +89,13 @@ async def update_knowledge_base(
     kb_id: UUID,
     payload: KnowledgeBaseUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """Update a knowledge base."""
     kb = await db.get(KnowledgeBase, kb_id)
     if kb is None:
         raise NotFoundException(f"Knowledge base {kb_id} not found")
+    _require_kb_access(kb, current_user)
 
     if payload.name is not None:
         kb.name = payload.name
@@ -103,11 +115,13 @@ async def update_knowledge_base(
 async def delete_knowledge_base(
     kb_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """Delete a knowledge base (documents are cascaded)."""
     kb = await db.get(KnowledgeBase, kb_id)
     if kb is None:
         raise NotFoundException(f"Knowledge base {kb_id} not found")
+    _require_kb_access(kb, current_user)
     await db.delete(kb)
     await db.commit()
     return None
@@ -117,11 +131,13 @@ async def delete_knowledge_base(
 async def get_knowledge_base_stats(
     kb_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """Return statistics for a knowledge base."""
     kb = await db.get(KnowledgeBase, kb_id)
     if kb is None:
         raise NotFoundException(f"Knowledge base {kb_id} not found")
+    _require_kb_access(kb, current_user)
 
     kb_id_str = str(kb_id)
 

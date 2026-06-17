@@ -1,4 +1,5 @@
 import type React from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Layout, Menu, Avatar, Space, Typography, Button, Badge } from 'antd'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
@@ -12,6 +13,7 @@ import {
 } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/authStore'
 import { colors, spacing, radius, shadows, typography } from '@/styles/theme'
+import api from '@/services/api'
 
 const { Header, Sider, Content } = Layout
 
@@ -19,20 +21,50 @@ interface AppLayoutProps {
   children: React.ReactNode
 }
 
-const menuItems = [
+const ALL_MENU_ITEMS = [
   { key: '/', icon: <DatabaseOutlined />, label: '知识库' },
   { key: '/product', icon: <ProfileOutlined />, label: '产品方案' },
   { key: '/upload-center', icon: <UploadOutlined />, label: '上传中心' },
   { key: '/search-console', icon: <SearchOutlined />, label: '检索控制台' },
   { key: '/eval-workbench', icon: <LineChartOutlined />, label: '评测工作台' },
-  { key: '/permission-mgr', icon: <SafetyOutlined />, label: '权限管理' },
-  { key: '/system-admin', icon: <SettingOutlined />, label: '系统管理' },
+  { key: '/permission-mgr', icon: <SafetyOutlined />, label: '权限管理', adminOnly: true },
+  { key: '/system-admin', icon: <SettingOutlined />, label: '系统管理', adminOnly: true },
 ]
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuthStore()
+
+  const isAdmin = user ? user.role === 'admin' || user.security_level === 'L4' : false
+
+  const menuItems = useMemo(
+    () => ALL_MENU_ITEMS.filter((item) => !item.adminOnly || isAdmin),
+    [isAdmin]
+  )
+
+  const [systemStatus, setSystemStatus] = useState<'success' | 'warning' | 'error'>('success')
+
+  useEffect(() => {
+    let mounted = true
+    const checkHealth = async () => {
+      try {
+        const res = await api.get('/v1/health')
+        if (!mounted) return
+        setSystemStatus(res.data.status === 'ok' ? 'success' : 'warning')
+      } catch {
+        if (!mounted) return
+        setSystemStatus('error')
+      }
+    }
+
+    checkHealth()
+    const interval = setInterval(checkHealth, 30000)
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
+  }, [])
 
   return (
     <Layout style={{ minHeight: '100vh', background: colors.background }}>
@@ -115,7 +147,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             企业级私有化多模态 RAG 系统
           </Typography.Title>
           <Space size={spacing.md} align="center">
-            <Badge status="success" text="运行中" />
+            <Badge
+              status={systemStatus}
+              text={systemStatus === 'success' ? '运行中' : systemStatus === 'warning' ? '服务降级' : '服务异常'}
+            />
             <span style={{ color: colors.textSecondary, fontSize: typography.sizes.base }}>
               {user?.username || 'Admin'}
             </span>

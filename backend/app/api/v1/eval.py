@@ -45,6 +45,7 @@ async def create_dataset(
         name=payload.name,
         questions=payload.questions,
         ground_truths=payload.ground_truths,
+        created_by=current_user.id,
     )
     return dataset
 
@@ -60,7 +61,9 @@ async def list_datasets(
     current_user: UserResponse = Depends(get_current_user),
 ):
     """List evaluation datasets."""
-    return await evaluation_service.list_datasets(db, skip=skip, limit=limit)
+    return await evaluation_service.list_datasets(
+        db, skip=skip, limit=limit, created_by=current_user.id
+    )
 
 
 @router.post(
@@ -86,6 +89,7 @@ async def create_task(
         dataset_id=payload.dataset_id,
         kb_id=payload.kb_id,
         metrics=payload.metrics,
+        created_by=current_user.id,
     )
 
     try:
@@ -117,7 +121,9 @@ async def list_tasks(
     current_user: UserResponse = Depends(get_current_user),
 ):
     """List evaluation tasks."""
-    return await evaluation_service.list_tasks(db, skip=skip, limit=limit)
+    return await evaluation_service.list_tasks(
+        db, skip=skip, limit=limit, created_by=current_user.id
+    )
 
 
 @router.get(

@@ -19,16 +19,9 @@ test.describe('Upload Center', () => {
     const samplePath = path.join(__dirname, '../../samples/01-企业RAG产品介绍.md')
     await fileChooser.setFiles(samplePath)
 
-    // Wait for file to appear in upload list
+    // The Dragger uses customRequest so the file uploads immediately on selection.
+    // Wait for the file to appear in the upload list and then the document table.
     await expect(page.locator('.ant-upload-list-item').first()).toBeVisible({ timeout: 10000 })
-
-    // Trigger upload
-    await page.getByRole('button', { name: /开始上传|上传|开始/ }).click()
-
-    // Wait for success message or document list update
-    await expect(page.getByText(/上传成功|success/i).first()).toBeVisible({ timeout: 20000 })
-
-    // Document list should refresh and show a row
-    await expect(page.locator('.ant-table-row').first()).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('.ant-table-row').first()).toBeVisible({ timeout: 20000 })
   })
 })
