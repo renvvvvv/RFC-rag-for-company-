@@ -11,7 +11,6 @@ import logging
 from typing import Any, Dict, List
 from uuid import UUID
 
-import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -19,6 +18,7 @@ from sqlalchemy.pool import NullPool
 from app.config import settings
 from app.models.chunk import Chunk
 from app.models.document import Document
+from app.retrieval.embedding_client import embedding_client
 from app.retrieval.meilisearch_client import MeilisearchFulltextStore
 from app.retrieval.milvus_client import MilvusVectorStore
 from app.workers.celery_app import celery_app
@@ -86,7 +86,9 @@ class _ChunkWrapper:
         if name == "created_by":
             return str(self._doc.created_by) if self._doc.created_by else ""
         if name == "status":
-            return self._chunk.status or "active"
+            # Chunks are only inserted into vector stores once embedding is
+            # complete, so they are immediately searchable/active.
+            return "active"
         if name == "text":
             return self._chunk.content
         if name == "title":
@@ -140,7 +142,9 @@ async def _embed_chunks_async(chunk_ids: List[str]) -> Dict[str, Any]:
                     payload["image_path"] = frame_path
             payloads.append(payload)
 
-        embeddings = _call_embedding_service(payloads)
+        # Use the OpenAI-compatible embedding client (supports external APIs).
+        texts = [p["content"] for p in payloads]
+        embeddings = await embedding_client.embed_batch(texts)
         if len(embeddings) != len(chunks):
             raise RuntimeError(
                 f"Embedding count mismatch: expected {len(chunks)}, got {len(embeddings)}"
@@ -206,37 +210,3 @@ async def _embed_chunks_async(chunk_ids: List[str]) -> Dict[str, Any]:
     return {"embedded": len(chunks)}
 
 
-def _call_embedding_service(
-    payloads: List[Dict[str, Any]],
-) -> List[List[float]]:
-    """Call the user-provided embedding HTTP endpoint."""
-    if not payloads:
-        return []
-
-    url = settings.EMBEDDING_SERVICE_URL
-    timeout = 300.0
-
-    with httpx.Client(timeout=timeout) as client:
-        try:
-            response = client.post(
-                url,
-                json={"items": payloads},
-                headers={"Content-Type": "application/json"},
-            )
-            response.raise_for_status()
-            data = response.json()
-        except Exception as exc:
-            raise RuntimeError(f"Embedding service request failed: {exc}") from exc
-
-    # Accept two response shapes:
-    #   { "embeddings": [[...], [...]] }
-    #   { "data": { "embeddings": [[...], [...]] } }
-    embeddings = data.get("embeddings")
-    if embeddings is None and isinstance(data.get("data"), dict):
-        embeddings = data["data"].get("embeddings")
-
-    if not isinstance(embeddings, list) or len(embeddings) != len(payloads):
-        raise RuntimeError(
-            f"Unexpected embedding response shape: {len(embeddings) if isinstance(embeddings, list) else 'none'} embeddings for {len(payloads)} payloads"
-        )
-    return embeddings

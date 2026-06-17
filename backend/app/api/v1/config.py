@@ -25,8 +25,10 @@ class ModelConfigOut(BaseModel):
 class ModelConfigUpdate(BaseModel):
     embedding_api_url: str | None = None
     embedding_model: str | None = None
+    embedding_api_key: str | None = None
     rerank_api_url: str | None = None
     rerank_model: str | None = None
+    rerank_api_key: str | None = None
     llm_api_url: str | None = None
     llm_model: str | None = None
     llm_api_key: str | None = None
@@ -62,17 +64,23 @@ async def update_model_config_api(
         updates["EMBEDDING_API_URL"] = data.embedding_api_url
     if data.embedding_model is not None:
         updates["EMBEDDING_MODEL"] = data.embedding_model
+    # API keys: treat empty strings as "no change" so the frontend can keep the
+    # password fields blank without accidentally clearing stored credentials.
+    if data.embedding_api_key:
+        updates["EMBEDDING_API_KEY"] = data.embedding_api_key
     if data.rerank_api_url is not None:
         updates["RERANK_API_URL"] = data.rerank_api_url
     if data.rerank_model is not None:
         updates["RERANK_MODEL"] = data.rerank_model
+    if data.rerank_api_key:
+        updates["RERANK_API_KEY"] = data.rerank_api_key
     if data.llm_api_url is not None:
         updates["LLM_API_URL"] = data.llm_api_url
     if data.llm_model is not None:
         updates["LLM_MODEL"] = data.llm_model
-    if data.llm_api_key is not None:
+    if data.llm_api_key:
         updates["LLM_API_KEY"] = data.llm_api_key
-    if data.minimax_api_key is not None:
+    if data.minimax_api_key:
         updates["MINIMAX_API_KEY"] = data.minimax_api_key
 
     await update_runtime_config(db, updates)

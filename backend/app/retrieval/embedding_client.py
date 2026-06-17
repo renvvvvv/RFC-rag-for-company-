@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import List, Optional
 
 import httpx
@@ -14,6 +15,15 @@ class EmbeddingClient:
 
     def __init__(self):
         self.timeout = 60.0
+        self.max_retries = 3
+        self.base_delay = 1.0
+
+    def _should_retry(self, exc: Exception) -> bool:
+        """Return True for transient network/rate-limit errors."""
+        if isinstance(exc, httpx.HTTPStatusError):
+            code = exc.response.status_code
+            return code == 429 or code >= 500
+        return isinstance(exc, (httpx.NetworkError, httpx.TimeoutException))
 
     def _config(self):
         cfg = get_model_config()
@@ -46,26 +56,51 @@ class EmbeddingClient:
 
         payload = {
             "model": cfg["model"],
-            "input": texts
+            "input": texts,
         }
-        
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(cfg["api_url"], json=payload, headers=headers)
-                resp.raise_for_status()
-                data = resp.json()
-                
-                if "data" in data:
-                    embeddings = sorted(data["data"], key=lambda x: x.get("index", 0))
-                    return [item["embedding"] for item in embeddings]
-                elif isinstance(data, list):
-                    return data
-                else:
-                    logger.warning("Unknown embedding response format")
-                    return []
-        except Exception as e:
-            logger.exception(f"Embedding API call failed: {e}")
-            dim = settings.EMBEDDING_DIMENSION
-            return [[0.0] * dim] * len(texts)
+        # Some OpenAI-compatible providers (e.g. OpenAI text-embedding-3) support
+        # a `dimensions` parameter to down-project to a smaller vector.  Only send
+        # it when it differs from the default so providers that do not support it
+        # are not broken.
+        dim = settings.EMBEDDING_DIMENSION
+        if dim and dim not in (None, 0):
+            payload["dimensions"] = dim
+
+        last_exc: Exception | None = None
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    resp = await client.post(
+                        cfg["api_url"], json=payload, headers=headers
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+
+                    if "data" in data:
+                        embeddings = sorted(data["data"], key=lambda x: x.get("index", 0))
+                        return [item["embedding"] for item in embeddings]
+                    elif isinstance(data, list):
+                        return data
+                    else:
+                        logger.warning("Unknown embedding response format")
+                        return []
+            except Exception as e:
+                last_exc = e
+                if attempt < self.max_retries and self._should_retry(e):
+                    delay = self.base_delay * (2 ** (attempt - 1))
+                    logger.warning(
+                        "Embedding API attempt %s/%s failed (%s); retrying in %.1fs",
+                        attempt,
+                        self.max_retries,
+                        e,
+                        delay,
+                    )
+                    time.sleep(delay)
+                    continue
+                break
+
+        logger.exception("Embedding API call failed after %s attempts: %s", self.max_retries, last_exc)
+        dim = settings.EMBEDDING_DIMENSION
+        return [[0.0] * dim] * len(texts)
 
 embedding_client = EmbeddingClient()

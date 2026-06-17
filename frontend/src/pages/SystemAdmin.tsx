@@ -41,8 +41,10 @@ interface UserGroup {
 interface ModelConfig {
   embedding_api_url?: string
   embedding_model: string
+  embedding_api_key?: string
   rerank_api_url?: string
   rerank_model: string
+  rerank_api_key?: string
   llm_api_url?: string
   llm_model: string
   llm_base_url: string
@@ -217,7 +219,7 @@ const SystemAdmin = () => {
                   label="Embedding API URL"
                   rules={[{ required: true }]}
                 >
-                  <Input placeholder="http://localhost:8001/embed" />
+                  <Input placeholder="https://yunwu.ai/v1/embeddings" />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
@@ -226,7 +228,17 @@ const SystemAdmin = () => {
                   label="Embedding 模型名"
                   rules={[{ required: true }]}
                 >
-                  <Input placeholder="text-embedding-3-large" />
+                  <Input placeholder="gemini-embedding-2-preview" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={[24, 0]}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="embedding_api_key"
+                  label="Embedding API Key"
+                >
+                  <Input.Password placeholder="sk-xxx" />
                 </Form.Item>
               </Col>
             </Row>
@@ -237,7 +249,7 @@ const SystemAdmin = () => {
                   label="Re-rank API URL"
                   rules={[{ required: true }]}
                 >
-                  <Input placeholder="http://localhost:8002/rerank" />
+                  <Input placeholder="https://yunwu.ai/v1/rerank" />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
@@ -246,7 +258,17 @@ const SystemAdmin = () => {
                   label="Re-rank 模型名"
                   rules={[{ required: true }]}
                 >
-                  <Input placeholder="bge-reranker-large" />
+                  <Input placeholder="qwen3-rerank" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={[24, 0]}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="rerank_api_key"
+                  label="Re-rank API Key"
+                >
+                  <Input.Password placeholder="sk-xxx" />
                 </Form.Item>
               </Col>
             </Row>

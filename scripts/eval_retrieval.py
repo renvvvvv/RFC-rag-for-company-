@@ -509,14 +509,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     print("=" * 80)
     print(
         "\nNOTES ON THE BASELINE:\n"
-        "  - The embedding service is a mock returning zero vectors, so semantic search\n"
-        "    cannot produce meaningful rankings and hybrid search falls back to BM25.\n"
-        "  - Keyword search uses PostgreSQL full-text search with the 'simple' ts_config,\n"
-        "    which tokenises English/Latin terms well but does NOT segment Chinese\n"
-        "    phrases. Chinese-only queries are expected to score poorly in keyword mode.\n"
+        "  - The embedding model is now a real external model (text-embedding-3-large),\n"
+        "    so semantic search produces meaningful vector rankings.\n"
+        "  - A real external reranker (qwen3-rerank) reorders the fused results for\n"
+        "    hybrid mode.\n"
+        "  - Keyword search still uses PostgreSQL full-text search with the 'simple'\n"
+        "    ts_config, which tokenises English/Latin terms well but does NOT segment\n"
+        "    Chinese phrases. Chinese-only queries are expected to score poorly in\n"
+        "    keyword mode.\n"
         "  - This baseline is intentionally captured as-is so future improvements\n"
-        "    (real embedding model, Chinese ts_config, reranker, hybrid tuning) can be\n"
-        "    measured against it.\n"
+        "    (Chinese ts_config, hybrid tuning, larger embedding model) can be measured\n"
+        "    against it.\n"
     )
     return 0
 

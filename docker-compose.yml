@@ -107,6 +107,8 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-rag-documents}
       MILVUS_HOST: ${MILVUS_HOST:-milvus-standalone}
       MILVUS_PORT: ${MILVUS_PORT:-19530}
+    volumes:
+      - ./backend/.env:/app/.env:ro
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -168,6 +170,8 @@ services:
       MILVUS_HOST: ${MILVUS_HOST:-milvus-standalone}
       MILVUS_PORT: ${MILVUS_PORT:-19530}
       EMBEDDING_MODEL_URL: ${EMBEDDING_MODEL_URL:-http://embedding-service:8080}
+    volumes:
+      - ./backend/.env:/app/.env:ro
     # TODO: 私有化 GPU 环境启用 nvidia 运行时后，可添加 deploy.resources.reservations.devices
     depends_on:
       rabbitmq:
@@ -189,6 +193,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://rag_user:rag_password@postgres:5432/rag_kb}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+    volumes:
+      - ./backend/.env:/app/.env:ro
     depends_on:
       rabbitmq:
         condition: service_healthy
