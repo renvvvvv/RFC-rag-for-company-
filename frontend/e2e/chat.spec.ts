@@ -19,9 +19,11 @@ test.describe('Chat', () => {
     await page.locator('textarea').first().fill('企业RAG是什么？')
     await page.getByRole('button', { name: /发送/ }).first().click()
 
-    // Expect assistant response area to appear (mock LLM returns fixed text)
-    await expect(
-      page.getByText(/Mock LLM|测试回答|RAG|请求处理失败/).first()
-    ).toBeVisible({ timeout: 30000 })
+    // The assistant message should appear with citation sources (real LLM)
+    await expect(page.getByText('引用来源').first()).toBeVisible({ timeout: 60000 })
+
+    // Assistant answer area should contain some text
+    const lastMessage = page.locator('.ant-list-item').last()
+    await expect(lastMessage).toContainText(/[^\s]/, { timeout: 10000 })
   })
 })
