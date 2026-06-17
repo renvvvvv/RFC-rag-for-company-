@@ -94,6 +94,25 @@ class DocumentService:
         if not doc:
             raise NotFoundException(f"文档 {doc_id} 不存在")
         return doc
+
+    async def get_file_stream(
+        self,
+        doc_id: UUID,
+    ) -> tuple:
+        """Return a readable stream, MIME type and filename for a stored file.
+
+        For link-type documents the returned "stream" is the target URL string
+        and callers should redirect instead of streaming.
+        """
+        doc = await self.get_document(doc_id)
+        if doc.file_type == "link":
+            return None, doc.mime_type or "text/html", doc.filename, doc.storage_key
+
+        try:
+            obj = self.s3.get_object(Bucket=self.bucket, Key=doc.storage_key)
+            return obj["Body"], doc.mime_type or "application/octet-stream", doc.filename, None
+        except Exception as exc:
+            raise NotFoundException(f"无法读取文档文件: {exc}") from exc
     
     async def list_documents(
         self,

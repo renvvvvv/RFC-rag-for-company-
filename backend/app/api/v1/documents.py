@@ -1,6 +1,8 @@
 from typing import List, Optional
+from urllib.parse import quote
 from uuid import UUID
 from fastapi import APIRouter, Depends, UploadFile, File, Form, status, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -83,6 +85,61 @@ async def get_document(
         return await service.get_document(doc_id)
     except NotFoundException:
         raise HTTPException(status_code=404, detail="Document not found")
+
+
+@router.get("/detail/{doc_id}/download")
+async def download_document(
+    doc_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """下载文档原始文件"""
+    service = DocumentService(db)
+    try:
+        body, media_type, filename, redirect_url = await service.get_file_stream(doc_id)
+    except NotFoundException:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if redirect_url:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=redirect_url)
+
+    encoded = quote(filename)
+    return StreamingResponse(
+        body,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded}",
+        },
+    )
+
+
+@router.get("/detail/{doc_id}/preview")
+async def preview_document(
+    doc_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """在线预览文档原始文件（浏览器支持的格式直接展示）"""
+    service = DocumentService(db)
+    try:
+        body, media_type, filename, redirect_url = await service.get_file_stream(doc_id)
+    except NotFoundException:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if redirect_url:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=redirect_url)
+
+    encoded = quote(filename)
+    return StreamingResponse(
+        body,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f"inline; filename*=UTF-8''{encoded}",
+        },
+    )
+
 
 @router.delete("/detail/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
