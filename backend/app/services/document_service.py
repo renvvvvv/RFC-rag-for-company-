@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from typing import List, Optional
@@ -145,11 +146,11 @@ class DocumentService:
             delete(Chunk).where(Chunk.doc_id == doc_id)
         )
         try:
-            milvus_store.delete_by_doc_id(str(doc_id))
+            await asyncio.to_thread(milvus_store.delete_by_doc_id, str(doc_id))
         except Exception as exc:
             logger.warning("Failed to delete Milvus records for doc_id=%s: %s", doc_id, exc)
         try:
-            meilisearch_store.delete_by_doc_id(str(doc_id))
+            await asyncio.to_thread(meilisearch_store.delete_by_doc_id, str(doc_id))
         except Exception as exc:
             logger.warning("Failed to delete Meilisearch records for doc_id=%s: %s", doc_id, exc)
 

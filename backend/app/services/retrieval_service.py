@@ -1,3 +1,4 @@
+import asyncio
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from sqlalchemy import select
@@ -84,13 +85,19 @@ class RetrievalService:
             query_embedding = await embedding_client.embed(query)
 
             if "image" in modalities:
-                image_results = milvus_store.search_image(
-                    query_embedding, filter_expr, top_k=top_k
+                image_results = await asyncio.to_thread(
+                    milvus_store.search_image,
+                    query_embedding,
+                    filter_expr,
+                    top_k=top_k,
                 )
                 vector_hits.extend(image_results)
 
-            text_results = milvus_store.search_text(
-                query_embedding, filter_expr, top_k=top_k * 2
+            text_results = await asyncio.to_thread(
+                milvus_store.search_text,
+                query_embedding,
+                filter_expr,
+                top_k=top_k * 2,
             )
             vector_hits.extend(text_results)
 
