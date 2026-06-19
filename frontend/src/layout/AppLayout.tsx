@@ -48,6 +48,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   useEffect(() => {
     let mounted = true
     const checkHealth = async () => {
+      if (document.hidden) return
       try {
         const res = await api.get('/v1/health')
         if (!mounted) return
@@ -60,9 +61,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     checkHealth()
     const interval = setInterval(checkHealth, 30000)
+    const handleVisibility = () => {
+      if (!document.hidden) checkHealth()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
     return () => {
       mounted = false
       clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [])
 

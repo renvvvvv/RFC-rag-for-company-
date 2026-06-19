@@ -84,6 +84,7 @@ const SearchConsole = () => {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const chatAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     api
@@ -91,6 +92,23 @@ const SearchConsole = () => {
       .then((res) => setKbList(res.data))
       .catch(() => message.error('加载知识库失败'))
     loadConversations()
+  }, [])
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && chatAbortRef.current) {
+        chatAbortRef.current.abort()
+        chatAbortRef.current = null
+        setLoading(false)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (chatAbortRef.current) {
+        chatAbortRef.current.abort()
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -199,15 +217,25 @@ const SearchConsole = () => {
     const currentQuery = query
     setQuery('')
 
+    if (chatAbortRef.current) {
+      chatAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    chatAbortRef.current = controller
+
     try {
-      const res = await api.post('/v1/chat', {
-        query: currentQuery,
-        kb_ids: selectedKbs,
-        conversation_id: conversationId,
-        modalities,
-        top_k: 10,
-        rerank_top_k: 5,
-      })
+      const res = await api.post(
+        '/v1/chat',
+        {
+          query: currentQuery,
+          kb_ids: selectedKbs,
+          conversation_id: conversationId,
+          modalities,
+          top_k: 10,
+          rerank_top_k: 5,
+        },
+        { signal: controller.signal }
+      )
       const data = res.data
       setMessages((prev) => [
         ...prev,
@@ -222,16 +250,24 @@ const SearchConsole = () => {
       ])
       loadConversations()
     } catch (e) {
-      message.error('请求失败')
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: '请求处理失败，请稍后重试。',
-        },
-      ])
+      if ((e as Error).name === 'CanceledError' || (e as Error).name === 'AbortError') {
+        // User left the page/tab; do not show an error toast.
+        setMessages((prev) => prev.filter((m) => m !== userMsg))
+      } else {
+        message.error('请求失败')
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '请求处理失败，请稍后重试。',
+          },
+        ])
+      }
     } finally {
       setLoading(false)
+      if (chatAbortRef.current === controller) {
+        chatAbortRef.current = null
+      }
     }
   }
 
