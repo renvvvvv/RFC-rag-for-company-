@@ -10,6 +10,7 @@ import {
   Space,
   Tabs,
   Table,
+  Typography,
 } from 'antd'
 import {
   InboxOutlined,
@@ -160,10 +161,14 @@ const UploadCenter = () => {
       title: '文件名 / URL',
       dataIndex: 'filename',
       key: 'filename',
+      ellipsis: true,
+      width: 360,
       render: (v: string, record: DocumentItem) => (
         <Space>
           {FILE_ICONS[record.file_type] || <FileTextOutlined style={{ color: colors.textSecondary }} />}
-          <span style={{ color: colors.textPrimary }}>{v}</span>
+          <Typography.Text ellipsis style={{ maxWidth: '100%' }}>
+            {v}
+          </Typography.Text>
         </Space>
       ),
     },
@@ -208,6 +213,7 @@ const UploadCenter = () => {
             borderRadius: radius.lg,
             background: colors.surfaceAlt,
             border: `1px dashed ${colors.border}`,
+            overflow: 'hidden',
           }}
         >
           <p style={{ fontSize: 40, color: colors.accent, marginBottom: spacing.md }}>
@@ -269,7 +275,7 @@ const UploadCenter = () => {
           <Space>
             <span style={{ color: colors.textSecondary, fontSize: typography.sizes.sm }}>目标知识库</span>
             <Select
-              style={{ width: 240 }}
+              style={{ width: 240, maxWidth: '50vw' }}
               value={selectedKb}
               onChange={setSelectedKb}
               placeholder="请选择知识库"
@@ -307,6 +313,7 @@ const UploadCenter = () => {
             columns={docColumns}
             loading={docsLoading}
             pagination={{ pageSize: 10, hideOnSinglePage: true }}
+            scroll={{ x: 'max-content' }}
           />
         )}
       </DataCard>

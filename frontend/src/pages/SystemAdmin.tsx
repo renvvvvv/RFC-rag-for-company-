@@ -135,19 +135,19 @@ const SystemAdmin = () => {
   }
 
   const userColumns = [
-    { title: '用户名', dataIndex: 'username', key: 'username' },
-    { title: '邮箱', dataIndex: 'email', key: 'email' },
-    { title: '部门', dataIndex: 'department', key: 'department' },
-    { title: '安全级别', dataIndex: 'security_level', key: 'security_level' },
-    { title: '状态', dataIndex: 'status', key: 'status' },
+    { title: '用户名', dataIndex: 'username', key: 'username', ellipsis: true, width: 120 },
+    { title: '邮箱', dataIndex: 'email', key: 'email', ellipsis: true, width: 180 },
+    { title: '部门', dataIndex: 'department', key: 'department', ellipsis: true, width: 120 },
+    { title: '安全级别', dataIndex: 'security_level', key: 'security_level', ellipsis: true, width: 100 },
+    { title: '状态', dataIndex: 'status', key: 'status', ellipsis: true, width: 100 },
   ]
 
   const groupColumns = [
-    { title: '群名称', dataIndex: 'name', key: 'name' },
-    { title: '描述', dataIndex: 'description', key: 'description' },
-    { title: '类型', dataIndex: 'group_type', key: 'group_type' },
-    { title: '最高级别', dataIndex: 'max_security_level', key: 'max_security_level' },
-    { title: '成员数', dataIndex: 'member_count', key: 'member_count' },
+    { title: '群名称', dataIndex: 'name', key: 'name', ellipsis: true, width: 140 },
+    { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true, width: 200 },
+    { title: '类型', dataIndex: 'group_type', key: 'group_type', ellipsis: true, width: 100 },
+    { title: '最高级别', dataIndex: 'max_security_level', key: 'max_security_level', ellipsis: true, width: 100 },
+    { title: '成员数', dataIndex: 'member_count', key: 'member_count', ellipsis: true, width: 90 },
   ]
 
   const accentButtonStyle = { background: colors.accent, borderColor: colors.accent }
@@ -170,7 +170,7 @@ const SystemAdmin = () => {
             </Button>
           }
         >
-          <Table rowKey="id" dataSource={users} columns={userColumns} />
+          <Table rowKey="id" dataSource={users} columns={userColumns} scroll={{ x: 'max-content' }} />
         </DataCard>
       ),
     },
@@ -191,7 +191,7 @@ const SystemAdmin = () => {
             </Button>
           }
         >
-          <Table rowKey="id" dataSource={groups} columns={groupColumns} />
+          <Table rowKey="id" dataSource={groups} columns={groupColumns} scroll={{ x: 'max-content' }} />
         </DataCard>
       ),
     },

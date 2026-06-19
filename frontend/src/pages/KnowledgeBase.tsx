@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Table, Button, Modal, Form, Input, Tag, Space, message } from 'antd'
+import { Table, Button, Modal, Form, Input, Tag, Space, Typography, message } from 'antd'
 import { PlusOutlined, EyeOutlined, DownloadOutlined, FileOutlined } from '@ant-design/icons'
 import api from '@/services/api'
 import PageHeader from '@/components/ui/PageHeader'
@@ -111,7 +111,7 @@ const KnowledgeBase = () => {
   }
 
   const columns = [
-    { title: '名称', dataIndex: 'name', key: 'name', width: 220 },
+    { title: '名称', dataIndex: 'name', key: 'name', width: 220, ellipsis: true },
     { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
     {
       title: '状态',
@@ -128,6 +128,7 @@ const KnowledgeBase = () => {
       dataIndex: 'created_at',
       key: 'created_at',
       width: 180,
+      ellipsis: true,
       render: (v: string) => new Date(v).toLocaleString(),
     },
     {
@@ -155,7 +156,9 @@ const KnowledgeBase = () => {
       render: (v: string) => (
         <Space>
           <FileOutlined />
-          <span>{v}</span>
+          <Typography.Text ellipsis style={{ maxWidth: '100%' }}>
+            {v}
+          </Typography.Text>
         </Space>
       ),
     },
@@ -250,6 +253,7 @@ const KnowledgeBase = () => {
             dataSource={data}
             columns={columns}
             pagination={{ pageSize: 10, hideOnSinglePage: true }}
+            scroll={{ x: 'max-content' }}
           />
         )}
       </DataCard>
@@ -276,7 +280,15 @@ const KnowledgeBase = () => {
       </Modal>
 
       <Modal
-        title={selectedKb ? `「${selectedKb.name}」文档列表` : '文档列表'}
+        title={
+          selectedKb ? (
+            <Typography.Text ellipsis style={{ maxWidth: 400 }}>
+              「{selectedKb.name}」文档列表
+            </Typography.Text>
+          ) : (
+            '文档列表'
+          )
+        }
         open={docsVisible}
         onCancel={() => setDocsVisible(false)}
         footer={null}
@@ -289,6 +301,7 @@ const KnowledgeBase = () => {
           columns={docColumns}
           pagination={{ pageSize: 10, hideOnSinglePage: true }}
           locale={{ emptyText: '暂无文档' }}
+          scroll={{ x: 'max-content' }}
         />
       </Modal>
     </div>

@@ -67,7 +67,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   }, [])
 
   return (
-    <Layout style={{ minHeight: '100vh', background: colors.background }}>
+    <Layout style={{ minHeight: '100vh', overflowX: 'hidden', background: colors.background }}>
       <Sider
         theme="light"
         width={230}
@@ -76,6 +76,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           borderRight: `1px solid ${colors.border}`,
           boxShadow: shadows.sm,
           zIndex: 10,
+          overflowX: 'hidden',
         }}
       >
         <div
@@ -139,6 +140,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             level={4}
             style={{
               margin: 0,
+              flex: 1,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
               color: colors.textPrimary,
               fontSize: typography.sizes.lg,
               fontWeight: typography.weights.semibold,
@@ -151,7 +157,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               status={systemStatus}
               text={systemStatus === 'success' ? '运行中' : systemStatus === 'warning' ? '服务降级' : '服务异常'}
             />
-            <span style={{ color: colors.textSecondary, fontSize: typography.sizes.base }}>
+            <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: colors.textSecondary, fontSize: typography.sizes.base }}>
               {user?.username || 'Admin'}
             </span>
             <Avatar
@@ -184,6 +190,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             minHeight: 280,
             border: `1px solid ${colors.border}`,
             boxShadow: shadows.sm,
+            overflowX: 'hidden',
           }}
         >
           {children}

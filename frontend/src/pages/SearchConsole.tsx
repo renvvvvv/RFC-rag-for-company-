@@ -236,7 +236,7 @@ const SearchConsole = () => {
   }
 
   return (
-    <div style={{ display: 'flex', gap: spacing.lg, height: 'calc(100vh - 180px)' }}>
+    <div style={{ display: 'flex', gap: spacing.lg, height: 'calc(100vh - 180px)', minWidth: 0, overflow: 'hidden' }}>
       {/* Conversation List */}
       <DataCard
         title={
@@ -245,7 +245,7 @@ const SearchConsole = () => {
             <span>会话列表</span>
           </Space>
         }
-        style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column' }}
+        style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', minWidth: 0 }}
         bodyStyle={{ padding: spacing.md, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
         <Button
@@ -291,16 +291,18 @@ const SearchConsole = () => {
                   </Popconfirm>,
                 ]}
               >
-                <div
-                  style={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    color: currentConversationId === conv.id ? colors.accent : colors.textPrimary,
-                    fontWeight: currentConversationId === conv.id ? typography.weights.medium : typography.weights.normal,
-                  }}
-                >
-                  {conv.title}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      color: currentConversationId === conv.id ? colors.accent : colors.textPrimary,
+                      fontWeight: currentConversationId === conv.id ? typography.weights.medium : typography.weights.normal,
+                    }}
+                  >
+                    {conv.title}
+                  </div>
                 </div>
               </List.Item>
             )}
@@ -316,7 +318,7 @@ const SearchConsole = () => {
             <span>检索配置</span>
           </Space>
         }
-        style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column' }}
+        style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', minWidth: 0 }}
         bodyStyle={{ padding: spacing.md }}
       >
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -328,6 +330,8 @@ const SearchConsole = () => {
               placeholder="选择知识库"
               value={selectedKbs}
               onChange={setSelectedKbs}
+              maxTagCount="responsive"
+              maxTagPlaceholder={(omitted) => `+${omitted.length}`}
             >
               {kbList.map((kb) => (
                 <Option key={kb.id} value={kb.id}>
@@ -361,10 +365,10 @@ const SearchConsole = () => {
             <span>检索问答</span>
           </Space>
         }
-        style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}
         bodyStyle={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column' }}
       >
-        <div style={{ flex: 1, overflowY: 'auto', padding: spacing.lg }}>
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0, padding: spacing.lg }}>
           {messages.length === 0 && (
             <div style={{ textAlign: 'center', marginTop: 100 }}>
               <div
@@ -409,9 +413,11 @@ const SearchConsole = () => {
                     borderRadius: radius.lg,
                     border: msg.role === 'user' ? 'none' : `1px solid ${colors.border}`,
                     boxShadow: shadows.sm,
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
                   }}
                 >
-                  <Paragraph style={{ margin: 0, color: 'inherit', lineHeight: typography.lineHeights.relaxed }}>
+                  <Paragraph style={{ margin: 0, color: 'inherit', lineHeight: typography.lineHeights.relaxed, wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
                     {msg.content}
                   </Paragraph>
                   {msg.intercepted && (
@@ -420,7 +426,10 @@ const SearchConsole = () => {
                     </Tag>
                   )}
                   {msg.strategy && (
-                    <Tag color="processing" style={{ marginTop: spacing.sm }}>
+                    <Tag
+                      color="processing"
+                      style={{ marginTop: spacing.sm, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
                       {msg.strategy.strategy}: {msg.strategy.reason}
                     </Tag>
                   )}
@@ -429,10 +438,10 @@ const SearchConsole = () => {
                       <Text strong style={{ color: 'inherit', fontSize: typography.sizes.sm }}>
                         引用来源
                       </Text>
-                      <div style={{ marginTop: spacing.xs }}>
+                      <div style={{ marginTop: spacing.xs, display: 'flex', flexWrap: 'wrap', gap: spacing.xs }}>
                         {msg.sources.map((s, i) => (
                           <Tooltip key={i} title={s.content}>
-                            <Tag color="default" style={{ cursor: 'help' }}>
+                            <Tag color="default" style={{ cursor: 'help', maxWidth: '100%' }}>
                               {s.modality} [{s.score.toFixed(2)}]
                             </Tag>
                           </Tooltip>

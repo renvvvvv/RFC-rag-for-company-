@@ -30,7 +30,7 @@ const DataCard: React.FC<DataCardProps> = ({
         background: colors.surface,
         ...style,
       }}
-      bodyStyle={{ padding: spacing.lg, ...bodyStyle }}
+      bodyStyle={{ padding: spacing.lg, overflow: 'hidden', ...bodyStyle }}
     >
       {children}
     </Card>

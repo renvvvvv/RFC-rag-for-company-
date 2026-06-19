@@ -331,12 +331,12 @@ const ProductPage = () => {
             }}
           />
           <div style={{ position: 'relative', zIndex: 1, maxWidth: 880, padding: '0 24px' }}>
-            <Title level={1} style={{ color: '#fff', marginBottom: 20, fontSize: 48, fontWeight: 600, letterSpacing: '-0.02em' }}>
+            <Title level={1} style={{ wordBreak: 'break-word', overflowWrap: 'break-word', color: '#fff', marginBottom: 20, fontSize: 48, fontWeight: 600, letterSpacing: '-0.02em' }}>
               让企业知识
               <br />
               <span style={{ color: accentColor }}>安全、可信、可溯源</span>
             </Title>
-            <Paragraph style={{ color: 'rgba(255,255,255,0.75)', fontSize: 18, lineHeight: 1.7, maxWidth: 680, marginBottom: 32 }}>
+            <Paragraph style={{ wordBreak: 'break-word', overflowWrap: 'break-word', color: 'rgba(255,255,255,0.75)', fontSize: 18, lineHeight: 1.7, maxWidth: 680, marginBottom: 32 }}>
               面向金融、制造、政务、能源等行业，提供数据不出域、权限可管控、来源可追溯、多模态可理解的企业知识检索与生成平台。
             </Paragraph>
             <Space size="middle">
@@ -372,7 +372,7 @@ const ProductPage = () => {
             <Title level={2} style={{ marginTop: 8, marginBottom: 12, color: brandColor }}>
               为什么企业需要私有化 RAG？
             </Title>
-            <Paragraph style={{ color: mutedColor, fontSize: 16, maxWidth: 640, margin: '0 auto' }}>
+            <Paragraph style={{ wordBreak: 'break-word', color: mutedColor, fontSize: 16, maxWidth: 640, margin: '0 auto' }}>
               通用大模型与 SaaS 搜索无法满足企业对安全、权限、溯源和多模态的核心诉求。
             </Paragraph>
           </div>
@@ -395,7 +395,7 @@ const ProductPage = () => {
                   <Title level={4} style={{ marginTop: 4, marginBottom: 12, color: brandColor }}>
                     {p.title}
                   </Title>
-                  <Paragraph style={{ color: '#4b5563', marginBottom: 0, lineHeight: 1.7 }}>
+                  <Paragraph style={{ wordBreak: 'break-word', color: '#4b5563', marginBottom: 0, lineHeight: 1.7 }}>
                     {p.desc}
                   </Paragraph>
                 </Card>
@@ -415,7 +415,7 @@ const ProductPage = () => {
             <Title level={2} style={{ marginTop: 8, marginBottom: 12, color: brandColor }}>
               默认拒绝，五级穿透
             </Title>
-            <Paragraph style={{ color: mutedColor, fontSize: 16, maxWidth: 640, margin: '0 auto' }}>
+            <Paragraph style={{ wordBreak: 'break-word', color: mutedColor, fontSize: 16, maxWidth: 640, margin: '0 auto' }}>
               从身份到标签逐层过滤，确保检索与生成内容严格受控，每一条结果都经过授权。
             </Paragraph>
           </div>
@@ -447,7 +447,7 @@ const ProductPage = () => {
                     >
                       {layer.icon}
                     </div>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <Title level={5} style={{ margin: 0, marginBottom: 4, color: brandColor }}>
                         {layer.title}
                       </Title>
@@ -496,7 +496,7 @@ const ProductPage = () => {
             <Title level={2} style={{ marginTop: 8, marginBottom: 12, color: brandColor }}>
               从数据到答案的完整闭环
             </Title>
-            <Paragraph style={{ color: mutedColor, fontSize: 16, maxWidth: 640, margin: '0 auto' }}>
+            <Paragraph style={{ wordBreak: 'break-word', color: mutedColor, fontSize: 16, maxWidth: 640, margin: '0 auto' }}>
               多模态接入、统一解析、混合检索、权限过滤、带引用溯源的生成。
             </Paragraph>
           </div>
@@ -504,11 +504,13 @@ const ProductPage = () => {
             style={{ borderRadius: 16, border: '1px solid #e5e7eb', marginBottom: 32 }}
             bodyStyle={{ padding: '32px 24px' }}
           >
-            <Steps direction="horizontal" size="small" current={-1} responsive>
-              {ragSteps.map((s, idx) => (
-                <Step key={idx} title={s.title} description={s.desc} />
-              ))}
-            </Steps>
+            <div style={{ overflowX: 'auto' }}>
+              <Steps direction="horizontal" size="small" current={-1} responsive>
+                {ragSteps.map((s, idx) => (
+                  <Step key={idx} title={s.title} description={s.desc} />
+                ))}
+              </Steps>
+            </div>
           </Card>
           <Row gutter={[24, 24]}>
             <Col xs={24} md={12}>
@@ -569,6 +571,7 @@ const ProductPage = () => {
             <Tabs
               activeKey={activeAuthTab}
               onChange={setActiveAuthTab}
+              tabBarStyle={{ flexWrap: 'wrap' }}
               items={externalAuthTabs.map((t) => ({
                 key: t.key,
                 label: (

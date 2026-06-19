@@ -26,7 +26,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, children }) =>
           {title}
         </Title>
         {subtitle && (
-          <Text style={{ color: colors.textMuted, fontSize: typography.sizes.md, lineHeight: typography.lineHeights.relaxed }}>
+          <Text style={{ wordBreak: 'break-word', overflowWrap: 'break-word', color: colors.textMuted, fontSize: typography.sizes.md, lineHeight: typography.lineHeights.relaxed }}>
             {subtitle}
           </Text>
         )}
