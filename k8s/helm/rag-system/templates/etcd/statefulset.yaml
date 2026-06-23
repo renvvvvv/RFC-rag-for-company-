@@ -1,0 +1,79 @@
+{{- if .Values.etcd.enabled -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "rag-system.fullname" . }}-etcd
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+    {{- include "rag-system.componentLabels" (dict "component" "etcd") | nindent 4 }}
+spec:
+  serviceName: {{ include "rag-system.fullname" . }}-etcd
+  replicas: {{ .Values.etcd.replicas }}
+  selector:
+    matchLabels:
+      {{- include "rag-system.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: etcd
+  template:
+    metadata:
+      labels:
+        {{- include "rag-system.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: etcd
+    spec:
+      containers:
+        - name: etcd
+          image: "{{ .Values.etcd.image.repository }}:{{ .Values.etcd.image.tag }}"
+          imagePullPolicy: {{ .Values.etcd.image.pullPolicy }}
+          command:
+            - etcd
+            - --advertise-client-urls=http://{{ include "rag-system.fullname" . }}-etcd:2379
+            - --listen-client-urls=http://0.0.0.0:2379
+            - --listen-peer-urls=http://0.0.0.0:2380
+            - --data-dir=/etcd
+          ports:
+            - name: client
+              containerPort: 2379
+              protocol: TCP
+            - name: peer
+              containerPort: 2380
+              protocol: TCP
+          env:
+            - name: ETCD_AUTO_COMPACTION_MODE
+              value: "revision"
+            - name: ETCD_AUTO_COMPACTION_RETENTION
+              value: "1000"
+            - name: ETCD_QUOTA_BACKEND_BYTES
+              value: "4294967296"
+          resources:
+            {{- toYaml .Values.etcd.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /etcd
+          livenessProbe:
+            exec:
+              command:
+                - etcdctl
+                - endpoint
+                - health
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - etcdctl
+                - endpoint
+                - health
+            initialDelaySeconds: 5
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if .Values.etcd.persistence.storageClass }}
+        storageClassName: {{ .Values.etcd.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.etcd.persistence.size }}
+{{- end }}

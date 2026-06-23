@@ -1,0 +1,79 @@
+{{- if .Values.rabbitmq.enabled -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "rag-system.fullname" . }}-rabbitmq
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+    {{- include "rag-system.componentLabels" (dict "component" "rabbitmq") | nindent 4 }}
+spec:
+  serviceName: {{ include "rag-system.fullname" . }}-rabbitmq
+  replicas: {{ .Values.rabbitmq.replicas }}
+  selector:
+    matchLabels:
+      {{- include "rag-system.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: rabbitmq
+  template:
+    metadata:
+      labels:
+        {{- include "rag-system.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: "{{ .Values.rabbitmq.image.repository }}:{{ .Values.rabbitmq.image.tag }}"
+          imagePullPolicy: {{ .Values.rabbitmq.image.pullPolicy }}
+          ports:
+            - name: amqp
+              containerPort: 5672
+              protocol: TCP
+            - name: management
+              containerPort: 15672
+              protocol: TCP
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rag-system.fullname" . }}-secrets
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rag-system.fullname" . }}-secrets
+                  key: RABBITMQ_DEFAULT_PASS
+            - name: RABBITMQ_DEFAULT_VHOST
+              value: {{ .Values.backendConfig.RABBITMQ_DEFAULT_VHOST | quote }}
+          resources:
+            {{- toYaml .Values.rabbitmq.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
+          livenessProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - -q
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - -q
+                - ping
+            initialDelaySeconds: 10
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if .Values.rabbitmq.persistence.storageClass }}
+        storageClassName: {{ .Values.rabbitmq.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.rabbitmq.persistence.size }}
+{{- end }}

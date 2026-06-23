@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rag-system.fullname" . }}-monitoring
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: {{ include "rag-system.fullname" . }}
+        monitor: prometheus
+
+    rule_files:
+      - /etc/prometheus/alerts.yml
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+                - {{ include "rag-system.fullname" . }}-alertmanager:9093
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets:
+              - localhost:9090
+
+      - job_name: app-backend
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - {{ include "rag-system.fullname" . }}-app-backend:8080
+
+      - job_name: kong
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - {{ include "rag-system.fullname" . }}-kong:8001
+
+      - job_name: milvus
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - {{ include "rag-system.fullname" . }}-milvus:9091
+
+  alertmanager.yml: |
+    receivers:
+      - name: default
+        webhook_configs:
+          - url: 'http://127.0.0.1:5001/_alertmanager/webhook'
+            send_resolved: false
+
+      - name: critical
+        webhook_configs:
+          - url: 'http://127.0.0.1:5001/_alertmanager/webhook'
+            send_resolved: false
+
+    route:
+      receiver: default
+      group_by: ['alertname', 'severity', 'team']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        - match:
+            severity: critical
+          receiver: critical
+          continue: true
+
+    inhibit_rules:
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname', 'team']

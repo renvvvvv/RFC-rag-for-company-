@@ -1,0 +1,129 @@
+# =============================================================================
+# Production values example for rag-system Helm Chart.
+# This example disables built-in stateful services in favor of external
+# managed services (RDS, ElastiCache, CloudAMQP, S3, Milvus cluster, etc.).
+# =============================================================================
+
+nameOverride: "rag-system"
+fullnameOverride: "rag-system"
+
+namespace:
+  create: true
+
+# ------------------------------------------------------------------
+# Ingress with TLS
+# ------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: rag.yourcompany.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: kong
+          port: 8000
+  tls:
+    - secretName: rag-tls
+      hosts:
+        - rag.yourcompany.com
+
+# ------------------------------------------------------------------
+# Backend configuration pointing to external services
+# ------------------------------------------------------------------
+backendConfig:
+  DEBUG: "false"
+
+  POSTGRES_HOST: "your-rds-endpoint.region.rds.amazonaws.com"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "rag_kb"
+
+  REDIS_HOST: "your-redis-endpoint.cache.amazonaws.com"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+
+  RABBITMQ_HOST: "your-rabbitmq-endpoint"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_VHOST: "/"
+
+  MINIO_ENDPOINT: "s3.amazonaws.com"
+  MINIO_BUCKET: "rag-documents"
+  MINIO_SECURE: "true"
+
+  MILVUS_HOST: "your-milvus-endpoint"
+  MILVUS_PORT: "19530"
+
+  CORS_ORIGINS: "https://rag.yourcompany.com"
+
+# ------------------------------------------------------------------
+# Disable built-in stateful services in production
+# ------------------------------------------------------------------
+postgres:
+  enabled: false
+
+redis:
+  enabled: false
+
+rabbitmq:
+  enabled: false
+
+etcd:
+  enabled: false
+
+minio:
+  enabled: false
+
+milvus:
+  enabled: false
+
+# ------------------------------------------------------------------
+# Application scaling
+# ------------------------------------------------------------------
+appBackend:
+  image:
+    repository: your-registry/rag-backend
+    tag: v1.0.0
+  replicaCount: 5
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 20
+
+frontend:
+  image:
+    repository: your-registry/rag-frontend
+    tag: v1.0.0
+  replicaCount: 3
+
+workers:
+  image:
+    repository: your-registry/rag-worker
+    tag: v1.0.0
+  queues:
+    ingest:
+      replicaCount: 3
+    embed:
+      replicaCount: 2
+    permission_sync:
+      replicaCount: 2
+
+kong:
+  replicaCount: 2
+
+# ------------------------------------------------------------------
+# Monitoring (keep built-in for simplicity or replace with managed)
+# ------------------------------------------------------------------
+prometheus:
+  persistence:
+    size: 100Gi
+
+grafana:
+  enabled: true
+
+alertmanager:
+  enabled: true

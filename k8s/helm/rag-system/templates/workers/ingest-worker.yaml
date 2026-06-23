@@ -1,0 +1,43 @@
+{{- if and .Values.workers.enabled .Values.workers.queues.ingest -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rag-system.fullname" . }}-ingest-worker
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+    {{- include "rag-system.componentLabels" (dict "component" "ingest-worker") | nindent 4 }}
+spec:
+  replicas: {{ .Values.workers.queues.ingest.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "rag-system.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ingest-worker
+  template:
+    metadata:
+      labels:
+        {{- include "rag-system.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ingest-worker
+    spec:
+      containers:
+        - name: worker
+          image: "{{ .Values.workers.image.repository }}:{{ .Values.workers.image.tag }}"
+          imagePullPolicy: {{ .Values.workers.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - app.workers.celery_app
+            - worker
+            - -Q
+            - ingest
+            - -n
+            - ingest@%h
+            - -l
+            - info
+          envFrom:
+            - configMapRef:
+                name: {{ include "rag-system.fullname" . }}-backend-env
+            - secretRef:
+                name: {{ include "rag-system.fullname" . }}-secrets
+          resources:
+            {{- toYaml .Values.workers.queues.ingest.resources | nindent 12 }}
+{{- end }}

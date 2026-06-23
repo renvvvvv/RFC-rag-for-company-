@@ -1,0 +1,103 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: 'Helm release name'
+        required: true
+        default: 'rag-system'
+      namespace:
+        description: 'Kubernetes namespace'
+        required: true
+        default: 'rag-system'
+      values_file:
+        description: 'Path to additional Helm values file (optional)'
+        required: false
+        default: ''
+      image_tag:
+        description: 'Container image tag to deploy (defaults to github.sha)'
+        required: false
+        default: ''
+
+jobs:
+  deploy-k8s:
+    name: Helm Upgrade
+    runs-on: ubuntu-latest
+
+    env:
+      REGISTRY: ${{ secrets.REGISTRY_URL || 'docker.io' }}
+      BACKEND_IMAGE: ${{ secrets.BACKEND_IMAGE || 'your-dockerhub-username/rag-backend' }}
+      FRONTEND_IMAGE: ${{ secrets.FRONTEND_IMAGE || 'your-dockerhub-username/rag-frontend' }}
+      WORKER_IMAGE: ${{ secrets.WORKER_IMAGE || 'your-dockerhub-username/rag-worker' }}
+      IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+      RELEASE_NAME: ${{ github.event.inputs.release_name }}
+      NAMESPACE: ${{ github.event.inputs.namespace }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl config current-context
+
+      - name: Prepare Helm values
+        run: |
+          VALUES_ARGS=()
+          VALUES_ARGS+=("-f" "k8s/helm/rag-system/values.yaml")
+
+          if [[ -n "${{ github.event.inputs.values_file }}" && -f "${{ github.event.inputs.values_file }}" ]]; then
+            VALUES_ARGS+=("-f" "${{ github.event.inputs.values_file }}")
+          fi
+
+          if [[ -f "k8s/helm/rag-system/secrets.yaml" ]]; then
+            VALUES_ARGS+=("-f" "k8s/helm/rag-system/secrets.yaml")
+          fi
+
+          # Override image tags to the target revision
+          cat > /tmp/image-overrides.yaml <<EOF
+          appBackend:
+            image:
+              repository: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}
+              tag: ${{ env.IMAGE_TAG }}
+          frontend:
+            image:
+              repository: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}
+              tag: ${{ env.IMAGE_TAG }}
+          workers:
+            image:
+              repository: ${{ env.REGISTRY }}/${{ env.WORKER_IMAGE }}
+              tag: ${{ env.IMAGE_TAG }}
+          EOF
+          VALUES_ARGS+=("-f" "/tmp/image-overrides.yaml")
+
+          echo "helm_args=${VALUES_ARGS[*]}" >> "$GITHUB_ENV"
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install "${RELEASE_NAME}" ./k8s/helm/rag-system \
+            -n "${NAMESPACE}" \
+            --create-namespace \
+            --wait \
+            --timeout 10m \
+            ${{ env.helm_args }}
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/${RELEASE_NAME}-app-backend -n ${NAMESPACE}
+          kubectl rollout status deployment/${RELEASE_NAME}-frontend -n ${NAMESPACE}
+          kubectl get pods -n ${NAMESPACE}

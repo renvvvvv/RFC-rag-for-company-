@@ -1,0 +1,83 @@
+{{- if .Values.milvus.enabled -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "rag-system.fullname" . }}-milvus
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+    {{- include "rag-system.componentLabels" (dict "component" "milvus") | nindent 4 }}
+spec:
+  serviceName: {{ include "rag-system.fullname" . }}-milvus
+  replicas: {{ .Values.milvus.replicas }}
+  selector:
+    matchLabels:
+      {{- include "rag-system.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: milvus
+  template:
+    metadata:
+      labels:
+        {{- include "rag-system.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: milvus
+    spec:
+      containers:
+        - name: milvus
+          image: "{{ .Values.milvus.image.repository }}:{{ .Values.milvus.image.tag }}"
+          imagePullPolicy: {{ .Values.milvus.image.pullPolicy }}
+          command:
+            - milvus
+            - run
+            - standalone
+          ports:
+            - name: grpc
+              containerPort: 19530
+              protocol: TCP
+            - name: metrics
+              containerPort: 9091
+              protocol: TCP
+          env:
+            - name: ETCD_ENDPOINTS
+              value: "{{ include "rag-system.fullname" . }}-etcd:2379"
+            - name: COMMON_ETCD_ENDPOINTS
+              value: "{{ include "rag-system.fullname" . }}-etcd:2379"
+            - name: MINIO_ADDRESS
+              value: "{{ include "rag-system.fullname" . }}-minio:9000"
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rag-system.fullname" . }}-secrets
+                  key: MINIO_ACCESS_KEY
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rag-system.fullname" . }}-secrets
+                  key: MINIO_SECRET_KEY
+          resources:
+            {{- toYaml .Values.milvus.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/milvus
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if .Values.milvus.persistence.storageClass }}
+        storageClassName: {{ .Values.milvus.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.milvus.persistence.size }}
+{{- end }}

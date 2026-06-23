@@ -1,0 +1,43 @@
+{{- if .Values.minio.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "rag-system.fullname" . }}-minio-init
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+    {{- include "rag-system.componentLabels" (dict "component" "minio-init") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "rag-system.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: minio-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: "{{ .Values.minio.mcImage.repository }}:{{ .Values.minio.mcImage.tag }}"
+          imagePullPolicy: {{ .Values.minio.mcImage.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              mc alias set local http://{{ include "rag-system.fullname" . }}-minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+              mc mb "local/{{ .Values.backendConfig.MINIO_BUCKET }}" --ignore-existing
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rag-system.fullname" . }}-secrets
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rag-system.fullname" . }}-secrets
+                  key: MINIO_ROOT_PASSWORD
+{{- end }}

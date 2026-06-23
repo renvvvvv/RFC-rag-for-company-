@@ -1,0 +1,51 @@
+{{- if .Values.alertmanager.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rag-system.fullname" . }}-alertmanager
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+    {{- include "rag-system.componentLabels" (dict "component" "alertmanager") | nindent 4 }}
+spec:
+  replicas: {{ .Values.alertmanager.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "rag-system.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: alertmanager
+  template:
+    metadata:
+      labels:
+        {{- include "rag-system.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: alertmanager
+    spec:
+      containers:
+        - name: alertmanager
+          image: "{{ .Values.alertmanager.image.repository }}:{{ .Values.alertmanager.image.tag }}"
+          imagePullPolicy: {{ .Values.alertmanager.image.pullPolicy }}
+          args:
+            - --config.file=/etc/alertmanager/alertmanager.yml
+            - --storage.path=/alertmanager
+          ports:
+            - name: http
+              containerPort: 9093
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager
+              readOnly: true
+            - name: data
+              mountPath: /alertmanager
+          resources:
+            {{- toYaml .Values.alertmanager.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "rag-system.fullname" . }}-monitoring
+        - name: data
+          {{- if .Values.alertmanager.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "rag-system.fullname" . }}-alertmanager
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

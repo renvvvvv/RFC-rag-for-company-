@@ -1,0 +1,13 @@
+apiVersion: v2
+name: rag-system
+description: Enterprise private multi-modal RAG system - Kubernetes Helm Chart
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - rag
+  - kubernetes
+  - helm
+  - ai
+maintainers:
+  - name: RAG Team

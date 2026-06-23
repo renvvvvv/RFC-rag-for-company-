@@ -1,0 +1,23 @@
+{{- if .Values.milvus.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rag-system.fullname" . }}-milvus
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+    {{- include "rag-system.componentLabels" (dict "component" "milvus") | nindent 4 }}
+spec:
+  type: {{ .Values.milvus.service.type }}
+  ports:
+    - port: {{ .Values.milvus.service.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+    - port: {{ .Values.milvus.service.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "rag-system.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: milvus
+{{- end }}

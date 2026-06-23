@@ -1,0 +1,29 @@
+{{- if and .Values.appBackend.enabled .Values.appBackend.autoscaling.enabled -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "rag-system.fullname" . }}-app-backend
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+    {{- include "rag-system.componentLabels" (dict "component" "app-backend") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "rag-system.fullname" . }}-app-backend
+  minReplicas: {{ .Values.appBackend.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.appBackend.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.appBackend.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.appBackend.autoscaling.targetMemoryUtilizationPercentage }}
+{{- end }}

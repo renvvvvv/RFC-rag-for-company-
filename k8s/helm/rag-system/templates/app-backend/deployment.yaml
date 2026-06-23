@@ -1,0 +1,56 @@
+{{- if .Values.appBackend.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rag-system.fullname" . }}-app-backend
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+    {{- include "rag-system.componentLabels" (dict "component" "app-backend") | nindent 4 }}
+spec:
+  replicas: {{ .Values.appBackend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "rag-system.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: app-backend
+  template:
+    metadata:
+      labels:
+        {{- include "rag-system.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: app-backend
+      {{- with .Values.appBackend.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      containers:
+        - name: app-backend
+          image: "{{ .Values.appBackend.image.repository }}:{{ .Values.appBackend.image.tag }}"
+          imagePullPolicy: {{ .Values.appBackend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "rag-system.fullname" . }}-backend-env
+            - secretRef:
+                name: {{ include "rag-system.fullname" . }}-secrets
+          resources:
+            {{- toYaml .Values.appBackend.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+{{- end }}

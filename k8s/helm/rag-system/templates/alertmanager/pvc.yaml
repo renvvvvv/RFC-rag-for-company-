@@ -1,0 +1,18 @@
+{{- if and .Values.alertmanager.enabled .Values.alertmanager.persistence.enabled -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "rag-system.fullname" . }}-alertmanager
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+    {{- include "rag-system.componentLabels" (dict "component" "alertmanager") | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.alertmanager.persistence.storageClass }}
+  storageClassName: {{ .Values.alertmanager.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.alertmanager.persistence.size }}
+{{- end }}

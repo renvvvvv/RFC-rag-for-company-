@@ -1,0 +1,79 @@
+{{- if .Values.kong.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rag-system.fullname" . }}-kong
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+    {{- include "rag-system.componentLabels" (dict "component" "kong") | nindent 4 }}
+spec:
+  replicas: {{ .Values.kong.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "rag-system.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: kong
+  template:
+    metadata:
+      labels:
+        {{- include "rag-system.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: kong
+    spec:
+      containers:
+        - name: kong
+          image: "{{ .Values.kong.image.repository }}:{{ .Values.kong.image.tag }}"
+          imagePullPolicy: {{ .Values.kong.image.pullPolicy }}
+          ports:
+            - name: proxy-http
+              containerPort: 8000
+              protocol: TCP
+            - name: proxy-https
+              containerPort: 8443
+              protocol: TCP
+            - name: admin-http
+              containerPort: 8001
+              protocol: TCP
+            - name: admin-https
+              containerPort: 8444
+              protocol: TCP
+          env:
+            - name: KONG_DATABASE
+              value: "off"
+            - name: KONG_DECLARATIVE_CONFIG
+              value: /kong/declarative/kong.yml
+            - name: KONG_PROXY_ACCESS_LOG
+              value: /dev/stdout
+            - name: KONG_ADMIN_ACCESS_LOG
+              value: /dev/stdout
+            - name: KONG_PROXY_ERROR_LOG
+              value: /dev/stderr
+            - name: KONG_ADMIN_ERROR_LOG
+              value: /dev/stderr
+            - name: KONG_PROXY_LISTEN
+              value: "0.0.0.0:8000"
+            - name: KONG_ADMIN_LISTEN
+              value: "0.0.0.0:8001"
+          volumeMounts:
+            - name: kong-config
+              mountPath: /kong/declarative
+              readOnly: true
+          resources:
+            {{- toYaml .Values.kong.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - kong
+                - health
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            exec:
+              command:
+                - kong
+                - health
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: kong-config
+          configMap:
+            name: {{ include "rag-system.fullname" . }}-kong
+{{- end }}

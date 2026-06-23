@@ -1,0 +1,31 @@
+{{- if .Values.kong.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rag-system.fullname" . }}-kong
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+    {{- include "rag-system.componentLabels" (dict "component" "kong") | nindent 4 }}
+spec:
+  type: {{ .Values.kong.service.type }}
+  ports:
+    - port: {{ .Values.kong.service.proxyHttpPort }}
+      targetPort: proxy-http
+      protocol: TCP
+      name: proxy-http
+    - port: {{ .Values.kong.service.proxyHttpsPort }}
+      targetPort: proxy-https
+      protocol: TCP
+      name: proxy-https
+    - port: {{ .Values.kong.service.adminHttpPort }}
+      targetPort: admin-http
+      protocol: TCP
+      name: admin-http
+    - port: {{ .Values.kong.service.adminHttpsPort }}
+      targetPort: admin-https
+      protocol: TCP
+      name: admin-https
+  selector:
+    {{- include "rag-system.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: kong
+{{- end }}

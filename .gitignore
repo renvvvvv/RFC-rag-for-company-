@@ -86,3 +86,9 @@ scripts/perf/*.log
 frontend/playwright/.auth/
 frontend/test-results/
 frontend/playwright-report/
+
+# Kubernetes
+k8s/helm/rag-system/secrets.yaml
+k8s/helm/rag-system/secrets-*.yaml
+k8s/helm/rag-system/*.tgz
+k8s/helm/rag-system/helm.exe

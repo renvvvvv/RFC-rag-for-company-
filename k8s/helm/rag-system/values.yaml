@@ -1,0 +1,497 @@
+# =============================================================================
+# Default values for rag-system Helm Chart
+# =============================================================================
+
+# ------------------------------------------------------------------
+# Global settings
+# ------------------------------------------------------------------
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: "rag-system"
+
+namespace:
+  create: true
+
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""
+
+# ------------------------------------------------------------------
+# Ingress (requires an Ingress Controller such as ingress-nginx)
+# ------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+  hosts:
+    - host: rag.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: kong
+          port: 8000
+  tls: []
+
+# ------------------------------------------------------------------
+# Non-sensitive backend configuration (injected via ConfigMap)
+# Sensitive values go into secrets below.
+# ------------------------------------------------------------------
+backendConfig:
+  APP_NAME: "Enterprise Private RAG"
+  DEBUG: "false"
+
+  # PostgreSQL connection (used when built-in postgres is enabled)
+  POSTGRES_HOST: "rag-system-postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "rag_kb"
+
+  # Redis connection
+  REDIS_HOST: "rag-system-redis"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+
+  # RabbitMQ connection
+  RABBITMQ_HOST: "rag-system-rabbitmq"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_VHOST: "/"
+
+  # MinIO / S3
+  MINIO_ENDPOINT: "rag-system-minio:9000"
+  MINIO_BUCKET: "rag-documents"
+  MINIO_SECURE: "false"
+
+  # Milvus
+  MILVUS_HOST: "rag-system-milvus"
+  MILVUS_PORT: "19530"
+  MILVUS_COLLECTION_PREFIX: "rag"
+
+  # JWT
+  JWT_ALGORITHM: "HS256"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
+  ADMIN_USERNAMES: "admin"
+
+  # CORS
+  CORS_ORIGINS: "http://localhost:3002,http://localhost:5173"
+  CORS_ALLOW_CREDENTIALS: "true"
+
+  # Models
+  EMBEDDING_SERVICE_URL: "http://rag-system-embedding-service:8080/embed"
+  EMBEDDING_MODEL_URL: "http://rag-system-embedding-service:8080/embed"
+  EMBEDDING_MODEL: "text-embedding-3-large"
+  EMBEDDING_DIMENSION: "768"
+
+  RERANK_SERVICE_URL: "http://rag-system-rerank-service:8080/rerank"
+  RERANK_MODEL: "bge-reranker-large"
+
+  LLM_MODEL: "minimax-m3"
+  MINIMAX_BASE_URL: "https://api.minimax.chat"
+
+  # Ports
+  PORT: "8080"
+
+# ------------------------------------------------------------------
+# Sensitive values (injected via Secret). DO NOT commit real values.
+# Create a separate secrets.yaml from secrets.yaml.example.
+# ------------------------------------------------------------------
+secrets:
+  POSTGRES_USER: "rag_user"
+  POSTGRES_PASSWORD: "rag_password"
+  DATABASE_URL: "postgresql://rag_user:rag_password@rag-system-postgres:5432/rag_kb"
+
+  REDIS_URL: "redis://rag-system-redis:6379/0"
+
+  RABBITMQ_DEFAULT_USER: "rag_user"
+  RABBITMQ_DEFAULT_PASS: "rag_password"
+  RABBITMQ_URL: "amqp://rag_user:rag_password@rag-system-rabbitmq:5672/"
+
+  MINIO_ROOT_USER: "minioadmin"
+  MINIO_ROOT_PASSWORD: "minioadmin"
+  MINIO_ACCESS_KEY: "minioadmin"
+  MINIO_SECRET_KEY: "minioadmin"
+
+  JWT_SECRET_KEY: "change-me-in-production"
+
+  EMBEDDING_API_URL: ""
+  EMBEDDING_API_KEY: ""
+  RERANK_API_URL: ""
+  RERANK_API_KEY: ""
+  LLM_API_URL: ""
+  LLM_API_KEY: ""
+  MINIMAX_API_KEY: ""
+
+  GRAFANA_ADMIN_USER: "admin"
+  GRAFANA_ADMIN_PASSWORD: "admin"
+
+# ------------------------------------------------------------------
+# PostgreSQL
+# ------------------------------------------------------------------
+postgres:
+  enabled: true
+  image:
+    registry: ""
+    repository: postgres
+    tag: "16"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 5432
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+# ------------------------------------------------------------------
+# Redis
+# ------------------------------------------------------------------
+redis:
+  enabled: true
+  image:
+    registry: ""
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 6379
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ------------------------------------------------------------------
+# RabbitMQ
+# ------------------------------------------------------------------
+rabbitmq:
+  enabled: true
+  image:
+    registry: ""
+    repository: rabbitmq
+    tag: "3-management"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    type: ClusterIP
+    amqpPort: 5672
+    managementPort: 15672
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+# ------------------------------------------------------------------
+# etcd (for Milvus)
+# ------------------------------------------------------------------
+etcd:
+  enabled: true
+  image:
+    registry: ""
+    repository: gcr.io/etcd-development/etcd
+    tag: "v3.5.5"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 2379
+    peerPort: 2380
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# ------------------------------------------------------------------
+# MinIO
+# ------------------------------------------------------------------
+minio:
+  enabled: true
+  image:
+    registry: ""
+    repository: minio/minio
+    tag: "RELEASE.2024-06-13T22-53-53Z"
+    pullPolicy: IfNotPresent
+  mcImage:
+    registry: ""
+    repository: minio/mc
+    tag: "RELEASE.2024-06-12T14-34-03Z"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    type: ClusterIP
+    apiPort: 9000
+    consolePort: 9001
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+# ------------------------------------------------------------------
+# Milvus (standalone)
+# ------------------------------------------------------------------
+milvus:
+  enabled: true
+  image:
+    registry: ""
+    repository: milvusdb/milvus
+    tag: "v2.4.1"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    type: ClusterIP
+    grpcPort: 19530
+    metricsPort: 9091
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+# ------------------------------------------------------------------
+# Application backend
+# ------------------------------------------------------------------
+appBackend:
+  enabled: true
+  image:
+    registry: ""
+    repository: your-dockerhub-username/rag-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 8080
+  ingress:
+    enabled: false
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  podAnnotations: {}
+  migration:
+    enabled: true
+    annotations:
+      "helm.sh/hook": pre-install,pre-upgrade
+      "helm.sh/hook-weight": "-5"
+      "helm.sh/hook-delete-policy": before-hook-creation
+
+# ------------------------------------------------------------------
+# Frontend
+# ------------------------------------------------------------------
+frontend:
+  enabled: true
+  image:
+    registry: ""
+    repository: your-dockerhub-username/rag-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  podAnnotations: {}
+
+# ------------------------------------------------------------------
+# Celery workers
+# ------------------------------------------------------------------
+workers:
+  enabled: true
+  image:
+    registry: ""
+    repository: your-dockerhub-username/rag-worker
+    tag: latest
+    pullPolicy: IfNotPresent
+  queues:
+    ingest:
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+    embed:
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+    permission_sync:
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+
+# ------------------------------------------------------------------
+# Kong API Gateway
+# ------------------------------------------------------------------
+kong:
+  enabled: true
+  image:
+    registry: ""
+    repository: kong
+    tag: "3.5"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    proxyHttpPort: 8000
+    proxyHttpsPort: 8443
+    adminHttpPort: 8001
+    adminHttpsPort: 8444
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# ------------------------------------------------------------------
+# Monitoring: Prometheus
+# ------------------------------------------------------------------
+prometheus:
+  enabled: true
+  image:
+    registry: ""
+    repository: prom/prometheus
+    tag: "v2.53.0"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 9090
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+# ------------------------------------------------------------------
+# Monitoring: Grafana
+# ------------------------------------------------------------------
+grafana:
+  enabled: true
+  image:
+    registry: ""
+    repository: grafana/grafana
+    tag: "10.4.4"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 3000
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# ------------------------------------------------------------------
+# Monitoring: Alertmanager
+# ------------------------------------------------------------------
+alertmanager:
+  enabled: true
+  image:
+    registry: ""
+    repository: prom/alertmanager
+    tag: "v0.27.0"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 9093
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi

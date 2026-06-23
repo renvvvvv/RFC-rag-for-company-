@@ -1,0 +1,8 @@
+{{- if .Values.namespace.create -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "rag-system.fullname" . }}
+  labels:
+    {{- include "rag-system.labels" . | nindent 4 }}
+{{- end }}
