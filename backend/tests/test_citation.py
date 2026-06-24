@@ -168,6 +168,7 @@ def test_chat_api_sources_include_position_info(
 ):
     mock_retrieval.search = AsyncMock(return_value=[_chunk_with_position()])
     mock_security.detect_prompt_injection.return_value = False
+    mock_security._fast_level_check = AsyncMock(return_value=None)
     mock_security.decide_api_strategy = AsyncMock(
         return_value={
             "strategy": "direct_api",
@@ -211,6 +212,7 @@ def test_chat_api_sources_expose_position_info(
 ):
     mock_retrieval.search = AsyncMock(return_value=[_chunk_with_position()])
     mock_security.detect_prompt_injection.return_value = False
+    mock_security._fast_level_check = AsyncMock(return_value=None)
     mock_security.decide_api_strategy = AsyncMock(
         return_value={
             "strategy": "direct_api",
@@ -251,30 +253,37 @@ def test_chat_api_sources_expose_position_info(
 @pytest.mark.asyncio
 @patch("app.services.retrieval_service.PermissionService")
 @patch("app.services.retrieval_service.embedding_client")
-@patch("app.services.retrieval_service.milvus_store")
+@patch("app.services.retrieval_service.get_vector_store")
 @patch("app.services.retrieval_service.bm25_client")
 @patch("app.services.retrieval_service.rerank_client")
 async def test_retrieval_service_preserves_position_info(
-    mock_rerank, mock_bm25, mock_milvus, mock_embedding, MockPermissionService
+    mock_rerank, mock_bm25, mock_get_vector_store, mock_embedding, MockPermissionService
 ):
     from app.models.chunk import Chunk
+    from app.retrieval.filters import VectorFilter
 
     mock_perm_service = AsyncMock()
     mock_perm_service.get_user_security_level.return_value = "L0"
     mock_perm_service.get_user_denied_documents.return_value = set()
     mock_perm_service.get_user_denied_tags.return_value = set()
     mock_perm_service.get_user_allowed_file_types.return_value = set()
-    mock_perm_service.build_milvus_filter_expr.return_value = "status == 'active'"
+    mock_perm_service.build_vector_filter.return_value = VectorFilter(
+        kb_ids=[], modalities=[], denied_doc_ids=[], denied_tags=[], status="active"
+    )
     mock_perm_service.check_field_permission.return_value = True
     MockPermissionService.return_value = mock_perm_service
 
     chunk_id = uuid.uuid4()
     doc_id = uuid.uuid4()
 
-    mock_embedding.embed = AsyncMock(return_value=[0.1, 0.2])
-    mock_milvus.search_text.return_value = [
+    mock_vector_store = MagicMock()
+    mock_vector_store.backend_name = "milvus"
+    mock_vector_store.search_text.return_value = [
         {"chunk_id": str(chunk_id), "score": 0.9}
     ]
+    mock_get_vector_store.return_value = mock_vector_store
+
+    mock_embedding.embed = AsyncMock(return_value=[0.1, 0.2])
     mock_bm25.search = AsyncMock(return_value=[])
     mock_rerank.rerank = AsyncMock(
         return_value=[

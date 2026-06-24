@@ -46,6 +46,8 @@ class MilvusVectorStore(BaseVectorStore):
     warning, so that application startup is not blocked.
     """
 
+    backend_name = "milvus"
+
     TEXT_DIM = 768
     IMAGE_DIM = 512
 

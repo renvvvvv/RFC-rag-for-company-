@@ -13,6 +13,7 @@ from app.models.chunk import Chunk
 from app.models.tag import Tag
 from app.core.cache import CacheManager
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
+from app.retrieval.filters import VectorFilter
 from app.services.group_service import GroupService
 
 class UnifiedPermissionInfo:
@@ -275,40 +276,46 @@ class PermissionService:
                 return False
         return True
     
-    async def build_milvus_filter_expr(
+    async def build_vector_filter(
         self,
         user_id: UUID,
         kb_ids: Optional[List[str]] = None,
-        modalities: Optional[List[str]] = None
-    ) -> str:
-        """生成Milvus权限过滤表达式"""
-        conditions = ["status == 'active'"]
-        
-        # 知识库过滤
-        if kb_ids:
-            kb_list = ", ".join([f'"{str(k)}"' for k in kb_ids])
-            conditions.append(f"kb_id in [{kb_list}]")
-        
-        # 文件类型过滤
+        modalities: Optional[List[str]] = None,
+    ) -> VectorFilter:
+        """Build a backend-neutral permission filter for vector stores."""
+        kb_ids = kb_ids or []
+        modalities = modalities or []
+
         allowed_types = await self.get_user_allowed_file_types(user_id)
         if allowed_types:
             if modalities:
                 allowed_types = allowed_types & set(modalities)
-            type_list = ", ".join([f'"{t}"' for t in allowed_types])
-            conditions.append(f"modality in [{type_list}]")
-        
-        # 文档黑名单
+            effective_modalities = list(allowed_types)
+        else:
+            # Preserve legacy behavior: when no file-type permissions are
+            # configured, no modality filter is emitted (all are allowed).
+            effective_modalities = []
+
         denied_docs = await self.get_user_denied_documents(user_id)
-        if denied_docs:
-            doc_list = ", ".join([f'"{d}"' for d in denied_docs])
-            conditions.append(f"doc_id not in [{doc_list}]")
-        
-        # 标签黑名单
         denied_tags = await self.get_user_denied_tags(user_id)
-        for tag in denied_tags:
-            conditions.append(f"array_not_contains(tags, '{tag}')")
-        
-        return " and ".join([f"({c})" for c in conditions])
+
+        return VectorFilter(
+            kb_ids=[str(k) for k in kb_ids],
+            modalities=effective_modalities,
+            denied_doc_ids=list(denied_docs),
+            denied_tags=list(denied_tags),
+            status="active",
+        )
+
+    async def build_milvus_filter_expr(
+        self,
+        user_id: UUID,
+        kb_ids: Optional[List[str]] = None,
+        modalities: Optional[List[str]] = None,
+    ) -> str:
+        """生成Milvus权限过滤表达式 (backward-compatible wrapper)."""
+        vector_filter = await self.build_vector_filter(user_id, kb_ids, modalities)
+        return vector_filter.to_milvus_expr()
 
     # ------------------------------------------------------------------ #
     # Unified ACL operations

@@ -83,7 +83,7 @@
 | 🤖 **安全生成** | 外部 LLM / 本地 mock LLM + 流式关键词拦截 + 上下文压缩 |
 | 🚪 **统一 API 网关** | Kong 网关集成 rate-limiting 与 key-auth，前后端统一入口 |
 | 🎨 **管理后台** | React 18 + Ant Design 5 + Vite，支持知识库、上传、检索、权限、模型配置 |
-| 🚀 **多种部署方式** | Docker Compose 开发/POC、Docker Compose 蓝绿部署、Kubernetes Helm Chart 生产部署 |
+| 🚀 **多种部署方式** | Docker Compose 全量/轻量双模式、蓝绿部署、Kubernetes Helm Chart 生产部署 |
 | 📊 **可观测性** | Prometheus + Grafana + Alertmanager 预置 Dashboard 与告警规则 |
 
 ### 界面预览
@@ -242,6 +242,27 @@ docker compose ps
 
 > **账号说明**：系统未预置默认登录账号，首次使用请调用 `/api/v1/auth/register` 注册账号（用户名需与 `backend/.env` 中 `ADMIN_USERNAMES` 一致才能获得管理员权限）。Grafana 默认账号为 `admin` / `admin`，首次登录后请立即修改。
 
+### Docker Compose 轻量启动（推荐本地开发 / 低配机器）
+
+全量模式包含 Milvus、MinIO、RabbitMQ、Kong、监控等 17 个容器，对机器资源要求较高。若仅需本地开发或机器配置有限，可使用 **轻量模式**：
+
+```bash
+# 使用 PostgreSQL + pgvector 作为向量库，本地文件系统作为对象存储，Redis 作为 Celery broker
+# 仅启动 5 个容器：postgres、redis、backend、worker、frontend
+docker compose -f docker-compose.lightweight.yml up -d
+```
+
+轻量模式特点：
+
+- 向量库：PostgreSQL + pgvector（替代 Milvus）
+- 对象存储：本地文件系统（替代 MinIO/S3）
+- 消息队列：Redis（替代 RabbitMQ）
+- 容器数：5 个（全量模式约 17 个）
+- 内存占用：约 1.5–2 GB（全量模式约 10 GB+）
+- 适用场景：本地开发、功能验证、POC、<10 万文档的中小规模部署
+
+> 详细对比与影响评估见 [`docs/operations/lightweight_vs_full_deployment_plan.md`](docs/operations/lightweight_vs_full_deployment_plan.md) 与 [`docs/operations/rag_quality_impact_assessment.md`](docs/operations/rag_quality_impact_assessment.md)。
+
 ### Kubernetes Helm Chart 部署
 
 适合生产环境，支持 HPA、Ingress、外部依赖切换与 secret 管理：
@@ -362,13 +383,19 @@ L4 关键词权限（敏感词分级）
 
 ## 🔧 部署方式
 
-### 方式一：Docker Compose 一键启动
+### 方式一：Docker Compose 全量启动
 
 ```bash
 docker compose up -d
 ```
 
-### 方式二：Docker Compose 蓝绿部署
+### 方式二：Docker Compose 轻量启动
+
+```bash
+docker compose -f docker-compose.lightweight.yml up -d
+```
+
+### 方式三：Docker Compose 蓝绿部署
 
 服务器上存在两个独立目录，共享基础设施，应用层双活切换：
 
@@ -395,7 +422,7 @@ bash scripts/rollback.sh
 
 详细端口与 CI/CD 配置见：[`docs/CI_CD_SETUP.md`](docs/CI_CD_SETUP.md)
 
-### 方式三：Kubernetes Helm Chart 部署（推荐生产）
+### 方式四：Kubernetes Helm Chart 部署（推荐生产）
 
 ```bash
 cd k8s/helm/rag-system

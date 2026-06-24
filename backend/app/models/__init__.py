@@ -22,6 +22,12 @@ from app.models.system_config import SystemConfig
 from app.models.tag import Tag, chunk_tags, document_tags
 from app.models.user import User
 
+try:
+    from app.models.vector import ImageFrameVector, TextChunkVector
+except Exception:  # pragma: no cover
+    ImageFrameVector = None  # type: ignore
+    TextChunkVector = None  # type: ignore
+
 __all__ = [
     "ApiKey",
     "SystemConfig",
@@ -48,4 +54,6 @@ __all__ = [
     "chunk_tags",
     "document_tags",
     "User",
+    "TextChunkVector",
+    "ImageFrameVector",
 ]

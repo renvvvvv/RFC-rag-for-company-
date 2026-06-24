@@ -13,8 +13,6 @@ from pathlib import Path
 from typing import Any, Dict, List
 from uuid import UUID
 
-import boto3
-from botocore.exceptions import ClientError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -27,6 +25,7 @@ from app.pipelines.factory import PipelineFactory
 from app.services.keyword_service import KeywordService
 from app.services.sensitive_info_service import SensitiveInfoService
 from app.workers.celery_app import celery_app
+from app.storage import get_file_storage
 
 logger = logging.getLogger(__name__)
 
@@ -50,17 +49,6 @@ def _create_async_session() -> AsyncSession:
         autoflush=False,
         autocommit=False,
     )()
-
-
-def _build_s3_client():
-    protocol = "https" if settings.MINIO_SECURE else "http"
-    return boto3.client(
-        "s3",
-        endpoint_url=f"{protocol}://{settings.MINIO_ENDPOINT}",
-        aws_access_key_id=settings.MINIO_ACCESS_KEY,
-        aws_secret_access_key=settings.MINIO_SECRET_KEY,
-        region_name="us-east-1",
-    )
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
@@ -203,23 +191,18 @@ async def _download_document(document: Document) -> Path:
     if not document.storage_key:
         raise ValueError(f"Document {document.id} has no storage_key")
 
-    s3 = _build_s3_client()
+    storage = get_file_storage()
     suffix = Path(document.filename).suffix or ".bin"
     temp_file = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
     temp_path = Path(temp_file.name)
     temp_file.close()
 
-    def _download():
-        try:
-            s3.download_file(
-                settings.MINIO_BUCKET,
-                document.storage_key,
-                str(temp_path),
-            )
-        except ClientError as exc:
-            raise RuntimeError(f"Failed to download {document.storage_key}: {exc}") from exc
+    try:
+        data = await storage.download(document.storage_key)
+        await asyncio.to_thread(temp_path.write_bytes, data)
+    except Exception as exc:
+        raise RuntimeError(f"Failed to download {document.storage_key}: {exc}") from exc
 
-    await asyncio.to_thread(_download)
     return temp_path
 
 

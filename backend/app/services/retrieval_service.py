@@ -9,8 +9,8 @@ from app.models.chunk import Chunk
 from app.pipelines.keyword_annotator import LEVEL_ORDER
 from app.retrieval.bm25_client import bm25_client
 from app.retrieval.embedding_client import embedding_client
-from app.retrieval.milvus_client import milvus_store
 from app.retrieval.rerank_client import rerank_client
+from app.retrieval.vector_store import get_vector_store
 from app.services.keyword_service import KeywordService
 from app.services.permission_service import PermissionService
 from app.core.metrics import rag_retrieval_duration_seconds
@@ -77,26 +77,27 @@ class RetrievalService:
 
         # 1. 向量检索
         if mode in ("hybrid", "semantic"):
-            filter_expr = await perm_service.build_milvus_filter_expr(
+            vector_filter = await perm_service.build_vector_filter(
                 user_id=user_id,
                 kb_ids=[str(k) for k in kb_ids],
                 modalities=list(allowed_types) if allowed_types else modalities,
             )
             query_embedding = await embedding_client.embed(query)
+            vector_store = get_vector_store()
 
             if "image" in modalities:
                 image_results = await asyncio.to_thread(
-                    milvus_store.search_image,
+                    vector_store.search_image,
                     query_embedding,
-                    filter_expr,
+                    vector_filter,
                     top_k=top_k,
                 )
                 vector_hits.extend(image_results)
 
             text_results = await asyncio.to_thread(
-                milvus_store.search_text,
+                vector_store.search_text,
                 query_embedding,
-                filter_expr,
+                vector_filter,
                 top_k=top_k * 2,
             )
             vector_hits.extend(text_results)

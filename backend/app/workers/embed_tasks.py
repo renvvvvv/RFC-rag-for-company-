@@ -20,7 +20,7 @@ from app.models.chunk import Chunk
 from app.models.document import Document
 from app.retrieval.embedding_client import embedding_client
 from app.retrieval.meilisearch_client import MeilisearchFulltextStore
-from app.retrieval.milvus_client import MilvusVectorStore
+from app.retrieval.vector_store import get_vector_store
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ def embed_chunks(self, chunk_ids: List[str]) -> Dict[str, Any]:
 
 
 async def _embed_chunks_async(chunk_ids: List[str]) -> Dict[str, Any]:
-    milvus = MilvusVectorStore()
+    vector_store = get_vector_store()
     meili = MeilisearchFulltextStore()
 
     session = _create_async_session()
@@ -157,17 +157,21 @@ async def _embed_chunks_async(chunk_ids: List[str]) -> Dict[str, Any]:
             wrapped = _ChunkWrapper(chunk, doc, doc.kb_id if doc else None)
             wrapped_chunks.append(wrapped)
 
-        # Insert into Milvus.
-        milvus_ids: List[str] = []
-        if milvus.is_available:
+        # Insert into the configured vector store.
+        vector_ids: List[str] = []
+        if vector_store.is_available:
             try:
-                milvus_ids = milvus.insert_chunks(
+                vector_ids = vector_store.insert_chunks(
                     wrapped_chunks,
                     embeddings,
                 )
-                logger.info("Inserted %s chunks into Milvus", len(milvus_ids))
+                logger.info(
+                    "Inserted %s chunks into %s",
+                    len(vector_ids),
+                    vector_store.backend_name,
+                )
             except Exception as exc:
-                logger.exception("Milvus insert failed: %s", exc)
+                logger.exception("%s insert failed: %s", vector_store.backend_name, exc)
 
         # Index full-text in Meilisearch.
         if meili.is_available:
@@ -180,8 +184,8 @@ async def _embed_chunks_async(chunk_ids: List[str]) -> Dict[str, Any]:
         # Update chunk records.
         for idx, chunk in enumerate(chunks):
             chunk.status = "active"
-            if idx < len(milvus_ids):
-                chunk.vector_id = milvus_ids[idx]
+            if idx < len(vector_ids):
+                chunk.vector_id = vector_ids[idx]
 
         await session.commit()
 

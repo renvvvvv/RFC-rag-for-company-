@@ -16,6 +16,7 @@ from app.core.exceptions import RAGBaseException
 from app.core.logging import RequestIDMiddleware, configure_logging
 from app.core.metrics import rag_api_request_duration_seconds, rag_api_requests_total
 from app.database import AsyncSessionLocal, engine
+from app.retrieval.vector_store import get_vector_store
 
 # Router imports
 from app.api.v1 import auth, health
@@ -45,7 +46,6 @@ async def lifespan(app: FastAPI):
     """Manage external connection lifecycle."""
     # Startup
     try:
-        from pymilvus import connections
         from redis.asyncio import from_url as redis_from_url
         from sqlalchemy import text
 
@@ -57,12 +57,8 @@ async def lifespan(app: FastAPI):
         app.state.redis = redis_from_url(settings.redis_url)
         await app.state.redis.ping()
 
-        # Establish Milvus connection
-        connections.connect(
-            alias="default",
-            host=settings.MILVUS_HOST,
-            port=settings.MILVUS_PORT,
-        )
+        # Initialize vector store connection (the store manages its own lifecycle)
+        get_vector_store()
 
         # Load runtime model configuration from database
         from app.core.runtime_config import load_runtime_config
@@ -97,9 +93,6 @@ async def lifespan(app: FastAPI):
         await engine.dispose()
         if hasattr(app.state, "redis"):
             await app.state.redis.close()
-        from pymilvus import connections
-
-        connections.disconnect("default")
         logging.info("Application shutdown completed")
     except Exception as exc:  # noqa: BLE001
         logging.warning("Error during shutdown: %s", exc)

@@ -158,6 +158,7 @@ def test_api_chat_full_flow(
     )
     mock_security.detect_prompt_injection.return_value = False
     mock_security.detect_prompt_injection.return_value = False
+    mock_security._fast_level_check = AsyncMock(return_value=None)
     mock_security.decide_api_strategy = AsyncMock(
         return_value={
             "strategy": "direct_api",
@@ -207,6 +208,7 @@ def test_api_chat_local_only_intercepted(
 ):
     mock_retrieval.search = AsyncMock(return_value=[])
     mock_security.detect_prompt_injection.return_value = False
+    mock_security._fast_level_check = AsyncMock(return_value=None)
     mock_security.decide_api_strategy = AsyncMock(
         return_value={
             "strategy": "local_only",

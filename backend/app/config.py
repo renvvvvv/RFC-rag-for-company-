@@ -38,18 +38,30 @@ class Settings(BaseSettings):
     RABBITMQ_PASSWORD: str = "guest"
     RABBITMQ_URL: str | None = None
 
+    # Vector store backend selection
+    VECTOR_STORE_BACKEND: str = "milvus"  # "milvus" | "pgvector"
+    PGVECTOR_COLLECTION_PREFIX: str = "rag"
+
     # Milvus
     MILVUS_HOST: str = "localhost"
     MILVUS_PORT: int = 19530
     MILVUS_COLLECTION_PREFIX: str = "rag"
 
+    # File storage backend selection
+    FILE_STORAGE_BACKEND: str = "s3"  # "s3" | "local"
+    LOCAL_STORAGE_PATH: str = "/data/rag-documents"
+
     # MinIO (S3-compatible) — credentials MUST be provided via environment.
     # No hard-coded defaults remain in code; see .env.example for placeholders.
     MINIO_ENDPOINT: str = "localhost:9000"
-    MINIO_ACCESS_KEY: str
-    MINIO_SECRET_KEY: str
+    MINIO_ACCESS_KEY: str = ""
+    MINIO_SECRET_KEY: str = ""
     MINIO_BUCKET: str = "rag-documents"
     MINIO_SECURE: bool = False
+
+    # Celery broker selection
+    CELERY_BROKER_TYPE: str = "rabbitmq"  # "rabbitmq" | "redis"
+    CELERY_TASK_ALWAYS_EAGER: bool = False
 
     # JWT — accepts JWT_SECRET_KEY or SECRET_KEY as a fallback.
     # Generate a strong random value for production (e.g. `openssl rand -hex 32`).
@@ -117,6 +129,19 @@ class Settings(BaseSettings):
         )
 
     @property
+    def sync_database_url(self) -> str:
+        """Return synchronous psycopg2-compatible database URL (used by pgvector)."""
+        if self.DATABASE_URL:
+            url = self.DATABASE_URL
+            if url.startswith("postgresql+asyncpg://"):
+                url = url.replace("postgresql+asyncpg://", "postgresql://", 1)
+            return url
+        return (
+            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+
+    @property
     def redis_url(self) -> str:
         return self.REDIS_URL or f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
@@ -127,6 +152,18 @@ class Settings(BaseSettings):
             or f"amqp://{self.RABBITMQ_USER}:{self.RABBITMQ_PASSWORD}"
             f"@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}/"
         )
+
+    @property
+    def celery_broker_url(self) -> str:
+        """Return the Celery broker URL based on CELERY_BROKER_TYPE."""
+        if self.CELERY_BROKER_TYPE.lower() == "redis":
+            return self.redis_url
+        return self.rabbitmq_url
+
+    @property
+    def celery_result_backend(self) -> str:
+        """Redis is used as the result backend in both modes."""
+        return self.redis_url
 
 
 settings = Settings()

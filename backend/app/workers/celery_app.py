@@ -5,8 +5,8 @@ from app.config import settings
 
 celery_app = Celery(
     "rag_worker",
-    broker=settings.rabbitmq_url,
-    backend=settings.redis_url,
+    broker=settings.celery_broker_url,
+    backend=settings.celery_result_backend,
 )
 
 celery_app.conf.update(
@@ -15,6 +15,7 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    task_always_eager=settings.CELERY_TASK_ALWAYS_EAGER,
     task_default_queue="ingest",
     task_routes={
         "app.workers.ingest_tasks.*": {"queue": "ingest"},

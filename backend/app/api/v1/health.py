@@ -1,6 +1,9 @@
 """Health check endpoint for the RAG backend."""
+import asyncio
 import logging
 import time
+import uuid
+from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, status
@@ -9,6 +12,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import engine
+from app.storage import get_file_storage
 
 router = APIRouter(tags=["health"])
 
@@ -42,63 +46,63 @@ async def _check_redis() -> Dict[str, Any]:
         return {"status": "unavailable", "error": str(exc)}
 
 
-async def _check_rabbitmq() -> Dict[str, Any]:
+async def _check_broker() -> Dict[str, Any]:
     start = time.perf_counter()
     try:
-        import aio_pika
+        if settings.CELERY_BROKER_TYPE.lower() == "redis":
+            from redis.asyncio import from_url as redis_from_url
 
-        connection = await aio_pika.connect_robust(settings.rabbitmq_url)
-        await connection.close()
+            redis = redis_from_url(settings.celery_broker_url)
+            await redis.ping()
+            await redis.close()
+        else:
+            import aio_pika
+
+            connection = await aio_pika.connect_robust(settings.celery_broker_url)
+            await connection.close()
         latency_ms = round((time.perf_counter() - start) * 1000, 2)
         return {"status": "ok", "latency_ms": latency_ms}
     except Exception as exc:  # noqa: BLE001
-        logging.warning("RabbitMQ health check failed: %s", exc)
+        logging.warning("Broker health check failed: %s", exc)
         return {"status": "unavailable", "error": str(exc)}
 
 
-async def _check_milvus() -> Dict[str, Any]:
+async def _check_vector_store() -> Dict[str, Any]:
     start = time.perf_counter()
     try:
-        from pymilvus import connections, utility
+        from app.retrieval.vector_store import get_vector_store
 
-        connections.connect(
-            alias="health",
-            host=settings.MILVUS_HOST,
-            port=settings.MILVUS_PORT,
-        )
-        _ = utility.get_server_version(using="health")
-        connections.disconnect("health")
+        store = get_vector_store()
+        if not store.is_available:
+            return {"status": "unavailable", "error": "vector store is not available"}
         latency_ms = round((time.perf_counter() - start) * 1000, 2)
         return {"status": "ok", "latency_ms": latency_ms}
     except Exception as exc:  # noqa: BLE001
-        logging.warning("Milvus health check failed: %s", exc)
+        logging.warning("Vector store health check failed: %s", exc)
         return {"status": "unavailable", "error": str(exc)}
 
 
-async def _check_minio() -> Dict[str, Any]:
+async def _check_storage() -> Dict[str, Any]:
+    """Check the configured file storage backend (S3/MinIO or local filesystem)."""
     start = time.perf_counter()
+    storage = get_file_storage()
     try:
-        import boto3
-        from botocore.config import Config
-        from botocore.exceptions import ClientError
-
-        protocol = "https" if settings.MINIO_SECURE else "http"
-        s3 = boto3.client(
-            "s3",
-            endpoint_url=f"{protocol}://{settings.MINIO_ENDPOINT}",
-            aws_access_key_id=settings.MINIO_ACCESS_KEY,
-            aws_secret_access_key=settings.MINIO_SECRET_KEY,
-            config=Config(signature_version="s3v4"),
-            region_name="us-east-1",
-        )
-        s3.head_bucket(Bucket=settings.MINIO_BUCKET)
+        if settings.FILE_STORAGE_BACKEND.lower() == "s3":
+            # For S3-compatible backends, verify the bucket is reachable.
+            await asyncio.to_thread(
+                storage._client.head_bucket, Bucket=settings.MINIO_BUCKET
+            )
+        else:
+            # For local storage, verify the base directory exists and is writable.
+            base_path = Path(settings.LOCAL_STORAGE_PATH)
+            await asyncio.to_thread(base_path.mkdir, parents=True, exist_ok=True)
+            marker = base_path / f".health-check-{uuid.uuid4().hex}"
+            await asyncio.to_thread(marker.write_text, "")
+            await asyncio.to_thread(marker.unlink)
         latency_ms = round((time.perf_counter() - start) * 1000, 2)
         return {"status": "ok", "latency_ms": latency_ms}
-    except ClientError as exc:
-        logging.warning("MinIO health check failed: %s", exc)
-        return {"status": "unavailable", "error": str(exc)}
     except Exception as exc:  # noqa: BLE001
-        logging.warning("MinIO health check failed: %s", exc)
+        logging.warning("Storage health check failed: %s", exc)
         return {"status": "unavailable", "error": str(exc)}
 
 
@@ -107,9 +111,9 @@ async def health_check():
     services = {
         "postgres": await _check_postgres(),
         "redis": await _check_redis(),
-        "rabbitmq": await _check_rabbitmq(),
-        "milvus": await _check_milvus(),
-        "minio": await _check_minio(),
+        "broker": await _check_broker(),
+        "vector_store": await _check_vector_store(),
+        "storage": await _check_storage(),
     }
     healthy = all(s["status"] == "ok" for s in services.values())
     body = {"status": "ok" if healthy else "degraded", "services": services}

@@ -7,28 +7,18 @@ from sqlalchemy import select, delete, func
 
 logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
-import boto3
-from botocore.config import Config
 from app.models.document import Document
 from app.models.chunk import Chunk
 from app.schemas.document import DocumentLinkCreate
-from app.config import settings
 from app.core.exceptions import NotFoundException
-from app.retrieval.milvus_client import milvus_store
 from app.retrieval.meilisearch_client import meilisearch_store
+from app.retrieval.vector_store import get_vector_store
+from app.storage import get_file_storage
 
 class DocumentService:
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.s3 = boto3.client(
-            "s3",
-            endpoint_url=f"http://{settings.MINIO_ENDPOINT}",
-            aws_access_key_id=settings.MINIO_ACCESS_KEY,
-            aws_secret_access_key=settings.MINIO_SECRET_KEY,
-            config=Config(signature_version="s3v4"),
-            region_name="us-east-1"
-        )
-        self.bucket = settings.MINIO_BUCKET
+        self.storage = get_file_storage()
     
     async def upload_document(
         self,
@@ -43,13 +33,8 @@ class DocumentService:
         file_type = self._detect_file_type(filename, content_type)
         storage_key = f"{kb_id}/{uuid.uuid4()}_{filename}"
         
-        # 上传文件到MinIO
-        self.s3.put_object(
-            Bucket=self.bucket,
-            Key=storage_key,
-            Body=file_bytes,
-            ContentType=content_type
-        )
+        # 上传文件到存储后端
+        await self.storage.upload(storage_key, file_bytes, content_type)
         
         tags = (metadata or {}).pop("tags", []) if isinstance(metadata, dict) else []
         doc = Document(
@@ -115,8 +100,8 @@ class DocumentService:
             return None, doc.mime_type or "text/html", doc.filename, doc.storage_key
 
         try:
-            obj = self.s3.get_object(Bucket=self.bucket, Key=doc.storage_key)
-            return obj["Body"], doc.mime_type or "application/octet-stream", doc.filename, None
+            stream, content_type = await self.storage.get_stream(doc.storage_key)
+            return stream, content_type, doc.filename, None
         except Exception as exc:
             raise NotFoundException(f"无法读取文档文件: {exc}") from exc
     
@@ -145,10 +130,16 @@ class DocumentService:
         await self.db.execute(
             delete(Chunk).where(Chunk.doc_id == doc_id)
         )
+        vector_store = get_vector_store()
         try:
-            await asyncio.to_thread(milvus_store.delete_by_doc_id, str(doc_id))
+            await asyncio.to_thread(vector_store.delete_by_doc_id, str(doc_id))
         except Exception as exc:
-            logger.warning("Failed to delete Milvus records for doc_id=%s: %s", doc_id, exc)
+            logger.warning(
+                "Failed to delete %s records for doc_id=%s: %s",
+                vector_store.backend_name,
+                doc_id,
+                exc,
+            )
         try:
             await asyncio.to_thread(meilisearch_store.delete_by_doc_id, str(doc_id))
         except Exception as exc:
@@ -157,9 +148,9 @@ class DocumentService:
     async def delete_document(self, doc_id: UUID):
         doc = await self.get_document(doc_id)
 
-        # 删除MinIO文件
+        # 删除存储后端中的文件
         try:
-            self.s3.delete_object(Bucket=self.bucket, Key=doc.storage_key)
+            await self.storage.delete(doc.storage_key)
         except Exception:
             pass
 
