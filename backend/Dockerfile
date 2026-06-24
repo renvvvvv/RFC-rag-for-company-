@@ -2,19 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies and common runtime libraries for OCR/PDF/office.
-# Each package is installed only if it is not already present.
+# Install minimal system dependencies for the API layer.
+# OCR/PDF/Office parsing is handled by the dedicated ingest-worker image.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl gcc \
-    && if ! command -v tesseract >/dev/null 2>&1; then \
-         apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng; \
-       fi \
-    && if ! command -v pdfinfo >/dev/null 2>&1; then \
-         apt-get install -y --no-install-recommends poppler-utils; \
-       fi \
-    && if ! command -v libreoffice >/dev/null 2>&1; then \
-         apt-get install -y --no-install-recommends libreoffice-writer libreoffice-calc libreoffice-impress; \
-       fi \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies as root

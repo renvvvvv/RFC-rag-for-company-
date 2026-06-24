@@ -24,6 +24,13 @@ services:
       retries: 5
       start_period: 10s
 
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1g
+        reservations:
+          memory: 64m
   redis:
     image: redis:7-alpine
     container_name: rag-redis
@@ -41,6 +48,13 @@ services:
       retries: 5
       start_period: 5s
 
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256m
+        reservations:
+          memory: 64m
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rag-rabbitmq
@@ -56,13 +70,20 @@ services:
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   # ------------------------------------------------------------------
   # Vector / object storage
   # ------------------------------------------------------------------
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512m
+        reservations:
+          memory: 64m
   etcd:
     image: gcr.io/etcd-development/etcd:v3.5.5
     container_name: rag-etcd
@@ -92,6 +113,13 @@ services:
       retries: 5
       start_period: 10s
 
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512m
+        reservations:
+          memory: 64m
   milvus-standalone:
     image: milvusdb/milvus:v2.4.1
     container_name: rag-milvus
@@ -118,6 +146,13 @@ services:
       retries: 5
       start_period: 60s
 
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2g
+        reservations:
+          memory: 64m
   minio:
     image: minio/minio:RELEASE.2024-06-13T22-53-53Z
     container_name: rag-minio
@@ -139,6 +174,13 @@ services:
       retries: 5
       start_period: 10s
 
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512m
+        reservations:
+          memory: 64m
   minio-init:
     image: minio/mc:RELEASE.2024-06-12T14-34-03Z
     container_name: rag-minio-init
@@ -157,7 +199,16 @@ services:
   # ------------------------------------------------------------------
   # Monitoring
   # ------------------------------------------------------------------
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256m
+        reservations:
+          memory: 64m
   prometheus:
+    profiles:
+      - monitoring
     image: prom/prometheus:v2.53.0
     container_name: rag-prometheus
     ports:
@@ -173,7 +224,16 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--web.enable-lifecycle'
 
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512m
+        reservations:
+          memory: 64m
   alertmanager:
+    profiles:
+      - monitoring
     image: prom/alertmanager:v0.27.0
     container_name: rag-alertmanager
     command:
@@ -187,7 +247,16 @@ services:
     networks:
       - rag-network
 
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256m
+        reservations:
+          memory: 64m
   grafana:
+    profiles:
+      - monitoring
     image: grafana/grafana:10.4.4
     container_name: rag-grafana
     ports:
@@ -202,6 +271,13 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
 
   # Optional exporters (start with --profile monitoring-exporters)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512m
+        reservations:
+          memory: 64m
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:latest
     container_name: rag-postgres-exporter
@@ -212,6 +288,13 @@ services:
     profiles:
       - monitoring-exporters
 
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128m
+        reservations:
+          memory: 64m
   redis-exporter:
     image: oliver006/redis_exporter:latest
     container_name: rag-redis-exporter
@@ -222,6 +305,13 @@ services:
     profiles:
       - monitoring-exporters
 
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128m
+        reservations:
+          memory: 64m
   rabbitmq-exporter:
     image: kbudde/rabbitmq-exporter:latest
     container_name: rag-rabbitmq-exporter
@@ -234,6 +324,13 @@ services:
     profiles:
       - monitoring-exporters
 
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128m
+        reservations:
+          memory: 64m
   node-exporter:
     image: prom/node-exporter:latest
     container_name: rag-node-exporter
@@ -246,6 +343,13 @@ services:
     profiles:
       - monitoring-exporters
 
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128m
+        reservations:
+          memory: 64m
 volumes:
   postgres_data:
   redis_data:

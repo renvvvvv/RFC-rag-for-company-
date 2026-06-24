@@ -40,6 +40,13 @@ services:
   # ------------------------------------------------------------------
   # Application backend
   # ------------------------------------------------------------------
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1.5g
+        reservations:
+          memory: 64m
   migrate:
     build:
       context: ./backend
@@ -52,6 +59,13 @@ services:
       - rag-network
     restart: on-failure
 
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512m
+        reservations:
+          memory: 64m
   app-backend:
     build:
       context: ./backend
@@ -94,6 +108,13 @@ services:
   # ------------------------------------------------------------------
   # Frontend
   # ------------------------------------------------------------------
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g
+        reservations:
+          memory: 64m
   frontend:
     build:
       context: ./frontend
@@ -117,10 +138,17 @@ services:
   # ------------------------------------------------------------------
   # Background workers
   # ------------------------------------------------------------------
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128m
+        reservations:
+          memory: 64m
   ingest-worker:
     build:
       context: ./backend
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile.ingest
     container_name: rag-${DEPLOY_COLOR:-blue}-ingest-worker
     command: celery -A app.workers.celery_app worker -Q ingest -n ingest_${DEPLOY_COLOR:-blue}@%h --loglevel=info
     environment:
@@ -139,6 +167,13 @@ services:
     networks:
       - rag-network
 
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1.5g
+        reservations:
+          memory: 64m
   embed-worker:
     build:
       context: ./backend
@@ -158,6 +193,13 @@ services:
     networks:
       - rag-network
 
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1.5g
+        reservations:
+          memory: 64m
   permission-sync-worker:
     build:
       context: ./backend
@@ -174,6 +216,13 @@ services:
     networks:
       - rag-network
 
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1.5g
+        reservations:
+          memory: 64m
 networks:
   rag-network:
     name: rag-network
