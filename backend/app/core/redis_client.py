@@ -122,6 +122,12 @@ class RedisClient:
     async def expire(self, key: str, ttl: int) -> bool | None:
         return await self._safe(lambda: self._redis.expire(self._key(key), ttl))()
 
+    async def ttl(self, key: str) -> int | None:
+        return await self._safe(lambda: self._redis.ttl(self._key(key)))()
+
+    async def incr(self, key: str) -> int | None:
+        return await self._safe(lambda: self._redis.incr(self._key(key)))()
+
     async def scan_delete(self, pattern: str) -> int | None:
         """Delete all keys matching ``pattern`` using SCAN (production-safe).
 
@@ -215,6 +221,10 @@ class RedisPipeline:
 
     def expire(self, key: str, ttl: int) -> "RedisPipeline":
         self._pipe.expire(self._key(key), ttl)
+        return self
+
+    def incr(self, key: str) -> "RedisPipeline":
+        self._pipe.incr(self._key(key))
         return self
 
     async def execute(self) -> list[Any] | None:

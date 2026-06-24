@@ -40,6 +40,12 @@ from app.schemas.user import (
     UserResponse,
     Token,
 )
+from app.schemas.api_key import (
+    ApiKeyCreate,
+    ApiKeyCreateResponse,
+    ApiKeyResponse,
+    ApiKeyUpdate,
+)
 
 __all__ = [
     "DocumentLinkCreate",
@@ -69,4 +75,8 @@ __all__ = [
     "UserLogin",
     "UserResponse",
     "Token",
+    "ApiKeyCreate",
+    "ApiKeyCreateResponse",
+    "ApiKeyResponse",
+    "ApiKeyUpdate",
 ]

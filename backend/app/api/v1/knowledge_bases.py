@@ -65,7 +65,12 @@ async def list_knowledge_bases(
     current_user: UserResponse = Depends(get_current_user),
 ):
     """List knowledge bases the current user has access to."""
-    stmt = select(KnowledgeBase).offset(skip).limit(limit)
+    stmt = (
+        select(KnowledgeBase)
+        .where(KnowledgeBase.owner_id == current_user.id)
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(stmt)
     return list(result.scalars().all())
 

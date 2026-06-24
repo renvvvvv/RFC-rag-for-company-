@@ -39,6 +39,16 @@ async def _retrieve_and_generate(
     stream: bool,
 ):
     """统一的检索与生成逻辑。"""
+    # Fast pre-retrieval security check for L4 users / L4 queries.
+    fast_strategy = await security_gateway._fast_level_check(db, user_id, query)
+    if fast_strategy and fast_strategy["strategy"] == "local_only":
+        return {
+            "answer": "当前查询涉及绝密内容，禁止调用外部API生成回答。",
+            "intercepted": True,
+            "sources": [],
+            "strategy": fast_strategy,
+        }
+
     chunks = await retrieval_service.search(
         db=db,
         user_id=user_id,

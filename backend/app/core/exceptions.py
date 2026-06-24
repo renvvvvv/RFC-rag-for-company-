@@ -35,6 +35,11 @@ class AuthenticationException(RAGBaseException):
     message: str = "Authentication failed"
 
 
+class AuthorizationException(RAGBaseException):
+    status_code: int = 403
+    message: str = "Authorization failed"
+
+
 class ExternalAPIException(RAGBaseException):
     status_code: int = 502
     message: str = "External service unavailable"

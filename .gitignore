@@ -83,6 +83,7 @@ frontend.log
 scripts/test_network_dns.sh
 scripts/perf/results/
 scripts/perf/*.log
+scripts/reports/
 frontend/playwright/.auth/
 frontend/test-results/
 frontend/playwright-report/

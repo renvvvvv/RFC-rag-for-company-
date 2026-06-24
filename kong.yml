@@ -20,6 +20,14 @@ services:
           - /openapi.json
         strip_path: false
 
+  - name: app-backend-external
+    url: http://app-backend:8080
+    routes:
+      - name: app-backend-external-api
+        paths:
+          - /api/v1/external
+        strip_path: false
+
   - name: frontend
     url: http://frontend:80
     routes:
@@ -34,10 +42,19 @@ consumers:
       - key: placeholder-api-key
 
 plugins:
-  # Rate limiting: 100 requests/minute per IP
+  # Rate limiting: 100 requests/minute per IP for the general API
   - name: rate-limiting
     config:
       minute: 100
+      policy: local
+      fault_tolerant: true
+      hide_client_headers: false
+
+  # Higher rate limit for external API key consumers
+  - name: rate-limiting
+    route: app-backend-external-api
+    config:
+      minute: 1000
       policy: local
       fault_tolerant: true
       hide_client_headers: false
@@ -46,7 +63,8 @@ plugins:
   - name: prometheus
 
   # Key-auth placeholder - disabled for local demo to let the SPA call /api directly.
-  # In production, enable and provide each frontend session an API key.
+  # External API key authentication is implemented inside the FastAPI application.
+  # In production, you may additionally enable Kong key-auth for extra protection.
   # - name: key-auth
   #   route: app-backend-api
   #   config:

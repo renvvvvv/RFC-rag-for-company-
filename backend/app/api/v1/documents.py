@@ -116,9 +116,8 @@ async def get_document(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """获取文档详情"""
-    service = DocumentService(db)
     try:
-        return await service.get_document(doc_id)
+        return await _require_document_access(db, current_user, doc_id)
     except NotFoundException:
         raise HTTPException(status_code=404, detail="Document not found")
 
@@ -188,6 +187,7 @@ async def delete_document(
     """删除文档"""
     service = DocumentService(db)
     try:
+        await _require_document_access(db, current_user, doc_id)
         await service.delete_document(doc_id)
     except NotFoundException:
         raise HTTPException(status_code=404, detail="Document not found")

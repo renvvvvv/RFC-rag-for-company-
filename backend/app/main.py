@@ -22,11 +22,13 @@ from app.api.v1 import auth, health
 
 # Placeholder routers for upcoming modules
 from app.api.v1 import (
+    api_keys,
     chat,
     collaboration,
     config,
     documents,
     eval,
+    external,
     groups,
     keywords,
     knowledge_bases,
@@ -185,6 +187,8 @@ app.include_router(users.router, prefix="/api/v1")
 app.include_router(config.router, prefix="/api/v1")
 app.include_router(eval.router, prefix="/api/v1")
 app.include_router(collaboration.router, prefix="/api/v1")
+app.include_router(api_keys.router, prefix="/api/v1")
+app.include_router(external.router, prefix="/api/v1")
 
 
 @app.exception_handler(RAGBaseException)

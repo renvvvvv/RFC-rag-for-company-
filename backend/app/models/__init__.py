@@ -1,4 +1,5 @@
 """SQLAlchemy models package."""
+from app.models.api_key import ApiKey
 from app.models.audit import AuditLog
 from app.models.chunk import Chunk
 from app.models.collaboration import Bookmark, Comment
@@ -22,6 +23,7 @@ from app.models.tag import Tag, chunk_tags, document_tags
 from app.models.user import User
 
 __all__ = [
+    "ApiKey",
     "SystemConfig",
     "AuditLog",
     "Bookmark",
