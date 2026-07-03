@@ -85,9 +85,9 @@ services:
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
       EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
       RERANK_SERVICE_URL: ${RERANK_SERVICE_URL:-http://rerank-service:8002/rerank}
-      RERANK_API_URL: ${RERANK_API_URL:-}
-      RERANK_MODEL: ${RERANK_MODEL:-bge-reranker-large}
-      RERANK_API_KEY: ${RERANK_API_KEY:-}
+      RERANK_API_URL: https://api.siliconflow.cn/v1/rerank
+      RERANK_MODEL: BAAI/bge-reranker-v2-m3
+      RERANK_API_KEY: sk-jyiqqlgkzwzpmhzhweulkkapqygyduhhbotgsoudksdcycnl
       LLM_API_URL: ${LLM_API_URL:-}
       LLM_MODEL: ${LLM_MODEL:-minimax-m3}
       LLM_API_KEY: ${LLM_API_KEY:-}
@@ -100,6 +100,9 @@ services:
       ADMIN_USERNAMES: ${ADMIN_USERNAMES:-admin}
     volumes:
       - ./backend/.env:/app/.env:ro
+      - ./backend/app:/app/app    # 挂载整个 app 目录，代码改动自动同步
+      - ./samples:/app/samples    # 挂载 samples 目录
+      - ./samples_2:/app/samples_2  # 挂载 samples_2 目录
       - local_storage:/data/rag-documents
     depends_on:
       postgres:
@@ -154,9 +157,9 @@ services:
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
       EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
       RERANK_SERVICE_URL: ${RERANK_SERVICE_URL:-http://rerank-service:8002/rerank}
-      RERANK_API_URL: ${RERANK_API_URL:-}
-      RERANK_MODEL: ${RERANK_MODEL:-bge-reranker-large}
-      RERANK_API_KEY: ${RERANK_API_KEY:-}
+      RERANK_API_URL: https://api.siliconflow.cn/v1/rerank
+      RERANK_MODEL: BAAI/bge-reranker-v2-m3
+      RERANK_API_KEY: sk-jyiqqlgkzwzpmhzhweulkkapqygyduhhbotgsoudksdcycnl
       LLM_API_URL: ${LLM_API_URL:-}
       LLM_MODEL: ${LLM_MODEL:-minimax-m3}
       LLM_API_KEY: ${LLM_API_KEY:-}
@@ -181,7 +184,7 @@ services:
       resources:
         limits:
           cpus: '1.0'
-          memory: 2g
+          memory: 4g    # 2026-07-03: 从 2g 增加到 4g，解决大文档处理时内存溢出问题
         reservations:
           memory: 256m
 

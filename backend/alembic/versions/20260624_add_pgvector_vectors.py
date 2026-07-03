@@ -55,7 +55,7 @@ def upgrade() -> None:
         sa.Column("tags", postgresql.ARRAY(sa.String(length=64)), nullable=True),
         sa.Column("created_by", sa.String(length=128), nullable=True),
         sa.Column("status", sa.String(length=32), nullable=False),
-        sa.Column("embedding", Vector(768), nullable=False),
+        sa.Column("embedding", Vector(1024), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
 
@@ -68,7 +68,7 @@ def upgrade() -> None:
         sa.Column("kb_id", sa.String(length=128), nullable=False),
         sa.Column("frame_index", sa.Integer(), nullable=True),
         sa.Column("image_url", sa.String(length=512), nullable=True),
-        sa.Column("embedding", Vector(512), nullable=False),
+        sa.Column("embedding", Vector(1024), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
 

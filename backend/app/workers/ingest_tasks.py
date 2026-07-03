@@ -132,7 +132,9 @@ async def _process_document_async(doc_id: str) -> Dict[str, Any]:
                 position_info=raw.get("position_info") or {},
                 metadata_={},
                 status="pending",
-                content_tsv=func.to_tsvector("simple", raw["content"]),
+                # 2026-07-02: 统一使用 chinese 配置支持中英文分词（之前用 simple 导致索引和查询分词不一致）
+                # content_tsv=func.to_tsvector("simple", raw["content"]),
+                content_tsv=func.to_tsvector("chinese", raw["content"]),
             )
             await keyword_svc.annotate_chunk(chunk)
             chunk_meta = {

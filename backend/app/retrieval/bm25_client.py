@@ -24,7 +24,7 @@ class BM25Client:
     gracefully when the schema is not ready or the query is empty.
     """
 
-    def __init__(self, ts_config: str = "simple") -> None:
+    def __init__(self, ts_config: str = "chinese") -> None:
         self.ts_config = ts_config
 
     @staticmethod

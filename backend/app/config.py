@@ -102,7 +102,7 @@ class Settings(BaseSettings):
     EMBEDDING_API_URL: str | None = None
     EMBEDDING_MODEL: str = "text-embedding-3-large"
     EMBEDDING_API_KEY: str | None = None
-    EMBEDDING_DIMENSION: int = 768
+    EMBEDDING_DIMENSION: int = 1024
 
     RERANK_SERVICE_URL: str = "http://localhost:8002/rerank"
     RERANK_API_URL: str | None = None

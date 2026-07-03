@@ -224,31 +224,165 @@ class DocumentIngestPipeline(BaseIngestPipeline):
             # TODO: 安装 langdetect 后启用语言检测。
             return ""
 
+    # 2026-07-03: 原来的切分逻辑（按固定字符数切分），已注释保留
+    # def _chunk_text(
+    #     self,
+    #     text: str,
+    #     chunk_size: int = 500,
+    #     overlap: int = 100,
+    # ) -> List[Dict[str, Any]]:
+    #     chunks = []
+    #     if not text:
+    #         return chunks
+    #
+    #     start = 0
+    #     chunk_index = 0
+    #     while start < len(text):
+    #         end = min(start + chunk_size, len(text))
+    #         chunk_text = text[start:end]
+    #
+    #         chunks.append({
+    #             "content": chunk_text,
+    #             "modality": "text",
+    #             "chunk_index": chunk_index,
+    #             "position_info": {"paragraph_range": [start, end]},
+    #             "metadata": {},
+    #         })
+    #
+    #         start += chunk_size - overlap
+    #         chunk_index += 1
+    #
+    #     return chunks
+
+    # 2026-07-03: 优化的切分逻辑（按段落切分 + 合并小chunks + 拆分大chunks + 保持overlap）
+    # 2026-07-03: 调整参数 - min_size=500, target_size=600, max_size=800, overlap=100
     def _chunk_text(
         self,
         text: str,
-        chunk_size: int = 500,
+        target_size: int = 600,
+        min_size: int = 500,
+        max_size: int = 800,
         overlap: int = 100,
     ) -> List[Dict[str, Any]]:
+        """优化的切分方案：按段落切分，保持语义完整性"""
         chunks = []
         if not text:
             return chunks
 
-        start = 0
-        chunk_index = 0
-        while start < len(text):
-            end = min(start + chunk_size, len(text))
-            chunk_text = text[start:end]
+        # 1. 先按段落切分（遇到空行就切）
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
 
-            chunks.append({
+        # 如果段落数量太少，尝试按单个换行符切分
+        if len(paragraphs) < 3:
+            paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
+
+        # 2. 合并小段落
+        merged = []
+        current = ""
+        for para in paragraphs:
+            if len(current) + len(para) <= target_size:
+                current += "\n\n" + para if current else para
+            else:
+                if current:
+                    merged.append(current)
+                current = para
+        if current:
+            merged.append(current)
+
+        # 3. 拆分大段落（特殊处理表格和目录）
+        for chunk in merged:
+            # 判断是否是表格或目录（不拆分）
+            is_table = '[TABLE]' in chunk
+            is_directory = '.....' in chunk and chunk.count('.....') > 3
+
+            if is_table or is_directory:
+                # 表格、目录单独作为一个 chunk，不拆分
+                chunks.append(chunk)
+            elif len(chunk) > max_size:
+                # 非表格内容才拆分
+                sentences = self._split_by_sentence(chunk)
+                sub_chunks = self._merge_sentences(sentences, target_size)
+                for sub_chunk in sub_chunks:
+                    chunks.append(sub_chunk)
+            else:
+                chunks.append(chunk)
+
+        # 4. 强制合并小 chunks
+        chunks = self._merge_small_chunks_aggressive(chunks, min_size)
+
+        # 5. 添加 overlap
+        chunks_with_overlap = []
+        for i, chunk in enumerate(chunks):
+            if i > 0:
+                # 添加上一个 chunk 的最后 overlap 个字符
+                prev = chunks[i-1]
+                overlap_text = prev[-overlap:] if len(prev) > overlap else prev
+                chunk = overlap_text + "\n\n" + chunk
+            chunks_with_overlap.append(chunk)
+
+        # 5. 格式化输出
+        result = []
+        for i, chunk_text in enumerate(chunks_with_overlap):
+            result.append({
                 "content": chunk_text,
                 "modality": "text",
-                "chunk_index": chunk_index,
-                "position_info": {"paragraph_range": [start, end]},
+                "chunk_index": i,
+                "position_info": {"chunk_index": i},
                 "metadata": {},
             })
 
-            start += chunk_size - overlap
-            chunk_index += 1
+        return result
+
+    def _merge_small_chunks_aggressive(self, chunks: List[str], min_size: int) -> List[str]:
+        """强制合并小 chunks，确保每个 chunk 至少 min_size 字符"""
+        if not chunks:
+            return chunks
+
+        merged = []
+        current = chunks[0]
+
+        for chunk in chunks[1:]:
+            if len(current) < min_size:
+                # 当前 chunk 太小，强制合并
+                current += "\n\n" + chunk
+            else:
+                merged.append(current)
+                current = chunk
+
+        merged.append(current)
+
+        # 再次检查，确保没有太小的 chunks
+        final_merged = []
+        for chunk in merged:
+            if len(chunk) < min_size and final_merged:
+                # 合并到前一个 chunk
+                final_merged[-1] += "\n\n" + chunk
+            else:
+                final_merged.append(chunk)
+
+        return final_merged
+
+    def _split_by_sentence(self, text: str) -> List[str]:
+        """按句子切分（遇到句号就切）"""
+        import re
+        # 匹配中英文句号、感叹号、问号
+        pattern = r'(?<=[。！？.!?])\s*'
+        return [s.strip() for s in re.split(pattern, text) if s.strip()]
+
+    def _merge_sentences(self, sentences: List[str], target_size: int) -> List[str]:
+        """合并句子到合适的 chunk 大小"""
+        chunks = []
+        current_chunk = ""
+
+        for sentence in sentences:
+            if len(current_chunk) + len(sentence) <= target_size:
+                current_chunk += sentence
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                current_chunk = sentence
+
+        if current_chunk:
+            chunks.append(current_chunk)
 
         return chunks

@@ -239,8 +239,10 @@ const SearchConsole = () => {
       const data = res.data
       setMessages((prev) => [
         ...prev,
-        {
-          id: crypto.randomUUID(),
+        { 
+          // id:crypto.randomUUID(),
+          // 把 crypto.randomUUID() 换成了手写的 UUID 生成器，因为 crypto.randomUUID() 在非 HTTPS、非 localhost 的环境下不可用。
+          id: 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); }),
           role: 'assistant',
           content: data.answer,
           sources: data.sources,

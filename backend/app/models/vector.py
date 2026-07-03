@@ -22,7 +22,7 @@ except Exception:  # pragma: no cover
 if _PGVECTOR_AVAILABLE:
 
     class TextChunkVector(Base):
-        """Dense vectors for document chunks (768-dim by default)."""
+        """Dense vectors for document chunks (1024-dim)."""
 
         __tablename__ = "text_chunk_vectors"
 
@@ -50,10 +50,10 @@ if _PGVECTOR_AVAILABLE:
         tags = Column(ARRAY(String(64)), nullable=True)
         created_by = Column(String(128), nullable=True)
         status = Column(String(32), nullable=False, default="active")
-        embedding = Column(Vector(768), nullable=False)
+        embedding = Column(Vector(1024), nullable=False)
 
     class ImageFrameVector(Base):
-        """Dense vectors for image/video keyframes (512-dim by default)."""
+        """Dense vectors for image/video keyframes (1024-dim)."""
 
         __tablename__ = "image_frame_vectors"
 
@@ -75,4 +75,4 @@ if _PGVECTOR_AVAILABLE:
         kb_id = Column(String(128), nullable=False, index=True)
         frame_index = Column(Integer, nullable=True)
         image_url = Column(String(512), nullable=True)
-        embedding = Column(Vector(512), nullable=False)
+        embedding = Column(Vector(1024), nullable=False)

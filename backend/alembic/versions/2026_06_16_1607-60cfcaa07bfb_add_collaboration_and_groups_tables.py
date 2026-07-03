@@ -1,7 +1,7 @@
 """add_collaboration_and_groups_tables
 
 Revision ID: 60cfcaa07bfb
-Revises: 20260615_add_field_permission_config
+Revises: 20260615_field_perm
 Create Date: 2026-06-16 16:07:37.970044
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '60cfcaa07bfb'
-down_revision = '20260615_add_field_permission_config'
+down_revision = '20260615_field_perm'
 branch_labels = None
 depends_on = None
 
