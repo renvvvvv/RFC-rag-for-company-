@@ -62,7 +62,9 @@ async def upload_document(
     """上传文档到指定知识库"""
     file_bytes = await file.read()
     metadata = {"tags": tags.split(",") if tags else []}
-    
+
+    await _require_kb_access(db, current_user, kb_id)
+
     service = DocumentService(db)
     doc = await service.upload_document(
         kb_id=kb_id,
@@ -85,6 +87,8 @@ async def create_link_document(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """创建链接文档"""
+    await _require_kb_access(db, current_user, kb_id)
+
     service = DocumentService(db)
     doc = await service.create_link_document(
         kb_id=kb_id,

@@ -609,7 +609,7 @@ const ProductPage = () => {
             size="large"
             icon={<MessageOutlined />}
             style={{ background: accentColor, borderColor: accentColor, borderRadius: 6 }}
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/knowledge-base')}
           >
             进入知识库
           </Button>

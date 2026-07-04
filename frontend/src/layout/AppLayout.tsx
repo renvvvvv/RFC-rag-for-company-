@@ -10,6 +10,7 @@ import {
   SafetyOutlined,
   SettingOutlined,
   ProfileOutlined,
+  KeyOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/authStore'
 import { colors, spacing, radius, shadows, typography } from '@/styles/theme'
@@ -22,12 +23,13 @@ interface AppLayoutProps {
 }
 
 const ALL_MENU_ITEMS = [
-  { key: '/', icon: <DatabaseOutlined />, label: '知识库' },
+  { key: '/knowledge-base', icon: <DatabaseOutlined />, label: '知识库' },
   { key: '/product', icon: <ProfileOutlined />, label: '产品方案' },
   { key: '/upload-center', icon: <UploadOutlined />, label: '上传中心' },
   { key: '/search-console', icon: <SearchOutlined />, label: '检索控制台' },
   { key: '/eval-workbench', icon: <LineChartOutlined />, label: '评测工作台' },
   { key: '/permission-mgr', icon: <SafetyOutlined />, label: '权限管理', adminOnly: true },
+  { key: '/api-keys', icon: <KeyOutlined />, label: 'API Key' },
   { key: '/system-admin', icon: <SettingOutlined />, label: '系统管理', adminOnly: true },
 ]
 

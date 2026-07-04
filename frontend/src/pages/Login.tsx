@@ -32,7 +32,7 @@ const Login = () => {
       setToken(access_token)
       setUser(user)
       message.success('登录成功')
-      navigate('/')
+      navigate('/knowledge-base')
     } catch (e: unknown) {
       message.error(getErrorMessage(e, '登录失败'))
     } finally {

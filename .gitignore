@@ -93,3 +93,6 @@ k8s/helm/rag-system/secrets.yaml
 k8s/helm/rag-system/secrets-*.yaml
 k8s/helm/rag-system/*.tgz
 k8s/helm/rag-system/helm.exe
+
+# Downloaded design assets
+*.zip
