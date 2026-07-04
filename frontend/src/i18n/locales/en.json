@@ -1,0 +1,38 @@
+{
+  "login": {
+    "title": "Enterprise Private RAG",
+    "subtitle": "Secure, trustworthy, and traceable enterprise knowledge retrieval platform",
+    "username": "Username",
+    "password": "Password",
+    "usernamePlaceholder": "Please enter username",
+    "passwordPlaceholder": "Please enter password",
+    "loginButton": "Sign In",
+    "loginSuccess": "Login succeeded",
+    "loginFailed": "Login failed"
+  },
+  "nav": {
+    "knowledgeBase": "Knowledge Base",
+    "search": "Search Console",
+    "qa": "Q&A",
+    "permission": "Permission Management",
+    "systemConfig": "System Config",
+    "product": "Product Solution",
+    "uploadCenter": "Upload Center",
+    "evalWorkbench": "Evaluation Workbench",
+    "apiKeys": "API Key",
+    "brand": "Enterprise RAG",
+    "brandSub": "Private Multimodal",
+    "headerTitle": "Enterprise Private Multimodal RAG System",
+    "running": "Running",
+    "degraded": "Degraded",
+    "error": "Service Error",
+    "logout": "Logout"
+  },
+  "common": {
+    "create": "Create",
+    "save": "Save",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "search": "Search"
+  }
+}

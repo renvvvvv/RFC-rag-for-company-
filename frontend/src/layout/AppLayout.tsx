@@ -13,6 +13,7 @@ import {
   KeyOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/authStore'
+import { useTranslation } from '@/i18n'
 import { colors, spacing, radius, shadows, typography } from '@/styles/theme'
 import api from '@/services/api'
 
@@ -22,27 +23,35 @@ interface AppLayoutProps {
   children: React.ReactNode
 }
 
-const ALL_MENU_ITEMS = [
-  { key: '/knowledge-base', icon: <DatabaseOutlined />, label: '知识库' },
-  { key: '/product', icon: <ProfileOutlined />, label: '产品方案' },
-  { key: '/upload-center', icon: <UploadOutlined />, label: '上传中心' },
-  { key: '/search-console', icon: <SearchOutlined />, label: '检索控制台' },
-  { key: '/eval-workbench', icon: <LineChartOutlined />, label: '评测工作台' },
-  { key: '/permission-mgr', icon: <SafetyOutlined />, label: '权限管理', adminOnly: true },
-  { key: '/api-keys', icon: <KeyOutlined />, label: 'API Key' },
-  { key: '/system-admin', icon: <SettingOutlined />, label: '系统管理', adminOnly: true },
+const MENU_KEY_CONFIG = [
+  { key: '/knowledge-base', icon: <DatabaseOutlined />, labelKey: 'nav.knowledgeBase' },
+  { key: '/product', icon: <ProfileOutlined />, labelKey: 'nav.product' },
+  { key: '/upload-center', icon: <UploadOutlined />, labelKey: 'nav.uploadCenter' },
+  { key: '/search-console', icon: <SearchOutlined />, labelKey: 'nav.search' },
+  { key: '/eval-workbench', icon: <LineChartOutlined />, labelKey: 'nav.evalWorkbench' },
+  { key: '/permission-mgr', icon: <SafetyOutlined />, labelKey: 'nav.permission', adminOnly: true },
+  { key: '/api-keys', icon: <KeyOutlined />, labelKey: 'nav.apiKeys' },
+  { key: '/system-admin', icon: <SettingOutlined />, labelKey: 'nav.systemConfig', adminOnly: true },
 ]
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuthStore()
+  const { t } = useTranslation()
 
   const isAdmin = user ? user.role === 'admin' || user.security_level === 'L4' : false
 
   const menuItems = useMemo(
-    () => ALL_MENU_ITEMS.filter((item) => !item.adminOnly || isAdmin),
-    [isAdmin]
+    () =>
+      MENU_KEY_CONFIG
+        .filter((item) => !item.adminOnly || isAdmin)
+        .map((item) => ({
+          key: item.key,
+          icon: item.icon,
+          label: t(item.labelKey),
+        })),
+    [isAdmin, t]
   )
 
   const [systemStatus, setSystemStatus] = useState<'success' | 'warning' | 'error'>('success')
@@ -115,9 +124,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           </div>
           <div>
             <div style={{ fontWeight: typography.weights.semibold, fontSize: typography.sizes.base, color: colors.textPrimary }}>
-              企业 RAG
+              {t('nav.brand')}
             </div>
-            <div style={{ fontSize: typography.sizes.xs, color: colors.textMuted }}>私有化多模态</div>
+            <div style={{ fontSize: typography.sizes.xs, color: colors.textMuted }}>{t('nav.brandSub')}</div>
           </div>
         </div>
         <Menu
@@ -158,12 +167,18 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               fontWeight: typography.weights.semibold,
             }}
           >
-            企业级私有化多模态 RAG 系统
+            {t('nav.headerTitle')}
           </Typography.Title>
           <Space size={spacing.md} align="center">
             <Badge
               status={systemStatus}
-              text={systemStatus === 'success' ? '运行中' : systemStatus === 'warning' ? '服务降级' : '服务异常'}
+              text={
+                systemStatus === 'success'
+                  ? t('nav.running')
+                  : systemStatus === 'warning'
+                    ? t('nav.degraded')
+                    : t('nav.error')
+              }
             />
             <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: colors.textSecondary, fontSize: typography.sizes.base }}>
               {user?.username || 'Admin'}
@@ -185,7 +200,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 navigate('/login')
               }}
             >
-              退出
+              {t('nav.logout')}
             </Button>
           </Space>
         </Header>

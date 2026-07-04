@@ -11,8 +11,10 @@ from app.schemas.permission import (
     FileTypePermissionCreate, DocumentPermissionCreate,
     FieldPermissionCreate, TagPermissionCreate,
     PermissionGrantRequest, PermissionRevokeRequest,
+    PermissionBatchGrantRequest, PermissionBatchRevokeRequest,
     PermissionListResponse,
     PermissionCheckResponse, ObjectPermissionCheckResponse,
+    PermissionValidationResponse,
 )
 from app.schemas.user import UserResponse
 
@@ -165,6 +167,46 @@ async def revoke_permission(
         permission=request.permission,
     )
     return {"message": "撤销成功", "deleted_count": deleted}
+
+
+@router.post("/batch-grant")
+async def grant_permissions_batch(
+    request: PermissionBatchGrantRequest,
+    service: PermissionService = Depends(get_permission_service),
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """批量授权入口。任意子项失败会回滚整个批次。"""
+    results = await service.grant_permissions_batch(request.items)
+    return {
+        "message": "批量授权成功",
+        "granted_count": len(results),
+        "permission_ids": [str(getattr(p, "id", "")) for p in results],
+    }
+
+
+@router.post("/batch-revoke")
+async def revoke_permissions_batch(
+    request: PermissionBatchRevokeRequest,
+    service: PermissionService = Depends(get_permission_service),
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """批量撤销入口。任意子项失败会回滚整个批次。"""
+    deleted_counts = await service.revoke_permissions_batch(request.items)
+    return {
+        "message": "批量撤销成功",
+        "total_deleted": sum(deleted_counts),
+    }
+
+
+@router.get("/validate", response_model=PermissionValidationResponse)
+async def validate_permission_inheritance(
+    target_type: str = Query(..., description="user or group"),
+    target_id: UUID = Query(..., description="target id"),
+    service: PermissionService = Depends(get_permission_service),
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """检查指定目标的权限是否存在冲突（含用户与其所属用户组之间的继承冲突）。"""
+    return await service.validate_permission_inheritance(target_type, target_id)
 
 
 @router.get("/list", response_model=PermissionListResponse)

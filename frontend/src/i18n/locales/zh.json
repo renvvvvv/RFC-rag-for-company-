@@ -1,0 +1,38 @@
+{
+  "login": {
+    "title": "企业级私有 RAG",
+    "subtitle": "安全、可信、可溯源的企业知识检索平台",
+    "username": "用户名",
+    "password": "密码",
+    "usernamePlaceholder": "请输入用户名",
+    "passwordPlaceholder": "请输入密码",
+    "loginButton": "登录系统",
+    "loginSuccess": "登录成功",
+    "loginFailed": "登录失败"
+  },
+  "nav": {
+    "knowledgeBase": "知识库",
+    "search": "检索控制台",
+    "qa": "问答",
+    "permission": "权限管理",
+    "systemConfig": "系统配置",
+    "product": "产品方案",
+    "uploadCenter": "上传中心",
+    "evalWorkbench": "评测工作台",
+    "apiKeys": "API Key",
+    "brand": "企业 RAG",
+    "brandSub": "私有化多模态",
+    "headerTitle": "企业级私有化多模态 RAG 系统",
+    "running": "运行中",
+    "degraded": "服务降级",
+    "error": "服务异常",
+    "logout": "退出"
+  },
+  "common": {
+    "create": "创建",
+    "save": "保存",
+    "delete": "删除",
+    "cancel": "取消",
+    "search": "搜索"
+  }
+}

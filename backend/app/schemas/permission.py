@@ -58,6 +58,16 @@ class PermissionRevokeRequest(BaseModel):
     object_key: Optional[str] = None
     permission: Optional[str] = None  # if None, revoke all matching permissions
 
+class PermissionBatchGrantRequest(BaseModel):
+    items: List[PermissionGrantRequest]
+
+class PermissionBatchRevokeRequest(BaseModel):
+    items: List[PermissionRevokeRequest]
+
+class PermissionValidationResponse(BaseModel):
+    valid: bool
+    conflicts: List[Dict[str, Any]] = []
+
 class PermissionListRequest(BaseModel):
     target_type: PermissionTargetType
     target_id: UUID
