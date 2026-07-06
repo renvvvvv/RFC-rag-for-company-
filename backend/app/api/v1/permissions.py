@@ -105,14 +105,19 @@ async def set_tag_permission(
     if not tag_ids:
         raise ValidationException("allowed_tags or denied_tags is required")
 
+    # First tag becomes the primary object_id; remaining tags packed into object_key.
+    primary_tag_id = tag_ids[0]
+    extra_tag_ids = tag_ids[1:]
     perm = await service.grant_permission(
         target_type=perm_data.target_type,
         target_id=perm_data.target_id,
         object_type="tag",
-        object_key=",".join(str(t) for t in tag_ids),
+        object_id=primary_tag_id,
+        object_key=",".join(str(t) for t in extra_tag_ids) if extra_tag_ids else None,
         permission="allow" if perm_data.allowed_tags else "deny",
     )
-    return {"message": "标签权限设置成功", "permission_id": str(perm.id)}
+    perm_id = perm[0].id if isinstance(perm, list) else perm.id
+    return {"message": "标签权限设置成功", "permission_id": str(perm_id)}
 
 
 @router.get("/check/{doc_id}", response_model=PermissionCheckResponse)

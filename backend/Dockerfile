@@ -2,10 +2,20 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install minimal system dependencies for the API layer.
-# OCR/PDF/Office parsing is handled by the dedicated ingest-worker image.
+# Install system dependencies for API layer and optional parsers.
+# These packages are required when OCR / PDF-to-image / audio parsing is enabled.
+# They are kept in the API image so health-check endpoints and local uploads can
+# validate files without crashing if the optional features are turned off.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl gcc \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        gcc \
+        tesseract-ocr \
+        tesseract-ocr-chi-sim \
+        tesseract-ocr-eng \
+        poppler-utils \
+        ffmpeg \
+        libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies as root

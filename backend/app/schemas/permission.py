@@ -36,8 +36,8 @@ class FieldPermissionCreate(BaseModel):
 class TagPermissionCreate(BaseModel):
     target_type: str = "group"
     target_id: UUID
-    allowed_tags: List[str] = []
-    denied_tags: List[str] = []
+    allowed_tags: List[UUID] = []
+    denied_tags: List[UUID] = []
 
 class PermissionGrantRequest(BaseModel):
     target_type: PermissionTargetType

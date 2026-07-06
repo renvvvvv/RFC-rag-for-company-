@@ -36,6 +36,7 @@ from app.api.v1 import (
     keywords,
     knowledge_bases,
     knowledge_graph,
+    operations,
     permissions,
     search,
     users,
@@ -188,6 +189,7 @@ app.include_router(external.router, prefix="/api/v1")
 app.include_router(knowledge_graph.router, prefix="/api/v1")
 app.include_router(im_integration.router, prefix="/api/v1")
 app.include_router(agentic_rag.router, prefix="/api/v1")
+app.include_router(operations.router, prefix="/api/v1")
 
 
 @app.exception_handler(RAGBaseException)
