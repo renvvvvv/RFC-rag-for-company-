@@ -10,6 +10,7 @@ import PermissionMgr from '@/pages/PermissionMgr'
 import SystemAdmin from '@/pages/SystemAdmin'
 import ProductPage from '@/pages/ProductPage'
 import ApiKeys from '@/pages/ApiKeys'
+import OperationsDashboard from '@/pages/OperationsDashboard'
 import NotFound from '@/pages/NotFound'
 
 function RequireAuth() {
@@ -40,6 +41,7 @@ function AppRouter() {
         <Route path="/permission-mgr" element={<PermissionMgr />} />
         <Route path="/system-admin" element={<SystemAdmin />} />
         <Route path="/api-keys" element={<ApiKeys />} />
+        <Route path="/operations" element={<OperationsDashboard />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

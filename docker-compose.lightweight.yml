@@ -62,7 +62,7 @@ services:
   app-backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.lightweight
     image: ${BACKEND_IMAGE:-your-dockerhub-username/rag-backend}:${IMAGE_TAG:-latest}
     container_name: rag-lw-app-backend
     ports:
@@ -78,6 +78,10 @@ services:
       LOCAL_STORAGE_PATH: /data/rag-documents
       CELERY_BROKER_TYPE: redis
       CELERY_TASK_ALWAYS_EAGER: "true"
+      # 轻量版默认关闭 OCR / 音频转录以降低内存占用；PDF/Office 文本解析仍可用
+      OCR_ENABLED: ${OCR_ENABLED:-false}
+      AUDIO_TRANSCRIPTION_ENABLED: ${AUDIO_TRANSCRIPTION_ENABLED:-false}
+      TESSDATA_PREFIX: ${TESSDATA_PREFIX:-/usr/share/tesseract-ocr/4.00/tessdata}
       # Model service endpoints (configure in .env for real providers)
       EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL:-http://embedding-service:8080}
       EMBEDDING_API_URL: ${EMBEDDING_API_URL:-}
