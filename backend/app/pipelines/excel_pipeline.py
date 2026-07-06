@@ -18,16 +18,17 @@ class ExcelIngestPipeline(BaseIngestPipeline):
         metadata: Dict[str, Any] = None
     ) -> List[Dict[str, Any]]:
         ext = os.path.splitext(file_path)[1].lower()
-        
+
         if ext == ".csv":
             sheets = {"Sheet1": pd.read_csv(file_path)}
         else:
-            sheets = pd.read_excel(file_path, sheet_name=None)
-        
+            # 2026-07-06: 使用 header=None 避免第一行被当作列名，防止数据错位
+            sheets = pd.read_excel(file_path, sheet_name=None, header=None)
+
         all_chunks = []
         for sheet_name, df in sheets.items():
             all_chunks.extend(self._process_sheet(sheet_name, df))
-        
+
         return all_chunks
     
     def _process_sheet(self, sheet_name: str, df: pd.DataFrame) -> List[Dict[str, Any]]:

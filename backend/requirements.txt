@@ -28,6 +28,7 @@ requests>=2.31.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 pyahocorasick>=0.9.0
+python-pptx>=0.6.23        # 2026-07-03: 启用 PowerPoint 解析
 prometheus-client>=0.20.0
 
 meilisearch>=0.31.0

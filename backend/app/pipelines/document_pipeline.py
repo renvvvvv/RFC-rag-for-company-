@@ -148,9 +148,33 @@ class DocumentIngestPipeline(BaseIngestPipeline):
             return "[OCR_UNAVAILABLE]"
 
     def _extract_pptx(self, file_path: str) -> Tuple[str, Dict[str, Any]]:
+        """解析 PPT/PPTX 文件，支持 .ppt（旧格式）和 .pptx（新格式）"""
         try:
+            import subprocess
+            import tempfile
+            from pathlib import Path
+
+            actual_path = file_path
+
+            # 2026-07-06: 支持 .ppt 旧格式，先用 libreoffice 转换成 .pptx
+            if file_path.lower().endswith('.ppt') and not file_path.lower().endswith('.pptx'):
+                # .ppt 旧格式需要先转换
+                converted_path = file_path.rsplit('.', 1)[0] + '.pptx'
+                try:
+                    result = subprocess.run(
+                        ['libreoffice', '--headless', '--convert-to', 'pptx', file_path, '--outdir', '/tmp/'],
+                        capture_output=True, text=True, timeout=60
+                    )
+                    # 检查转换是否成功
+                    tmp_converted = '/tmp/' + Path(file_path).stem + '.pptx'
+                    if Path(tmp_converted).exists():
+                        actual_path = tmp_converted
+                except Exception as e:
+                    return f"[PPT转换失败: {str(e)}]", {}
+
+            # 用 python-pptx 解析
             from pptx import Presentation
-            prs = Presentation(file_path)
+            prs = Presentation(actual_path)
             texts = []
             for slide in prs.slides:
                 for shape in slide.shapes:
