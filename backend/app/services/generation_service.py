@@ -178,11 +178,13 @@ class GenerationService:
             score = chunk.get("rerank_score")
             if score is None:
                 score = chunk.get("score", 0)
+            rerank_score = chunk.get("rerank_score")
             sources.append({
                 "doc_id": chunk.get("doc_id"),
                 "chunk_id": chunk.get("chunk_id"),
                 "content": chunk.get("content", "")[:200],
                 "score": score,
+                "rerank_score": rerank_score,
                 "modality": chunk.get("modality", "text"),
                 "position_info": position_info,
                 "page": position_info.get("page"),

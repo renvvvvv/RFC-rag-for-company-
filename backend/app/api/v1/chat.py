@@ -5,8 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
-from app.api.v1.auth import get_current_user
+from app.api.v1.auth import get_current_user, is_admin
+from app.core.exceptions import NotFoundException, PermissionDeniedException
 from app.database import get_db
+from app.models.knowledge_base import KnowledgeBase
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
@@ -24,6 +26,38 @@ from app.services.retrieval_service import retrieval_service
 from app.services.security_gateway import security_gateway
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+async def _get_kb(db: AsyncSession, kb_id: UUID) -> KnowledgeBase:
+    kb = await db.get(KnowledgeBase, kb_id)
+    if kb is None:
+        raise NotFoundException(f"知识库 {kb_id} 不存在")
+    return kb
+
+
+def _is_privileged_admin(current_user: UserResponse) -> bool:
+    """Admin users bypass KB ownership checks."""
+    return is_admin(current_user)
+
+
+async def _require_kb_access(
+    db: AsyncSession,
+    current_user: UserResponse,
+    kb_id: UUID,
+) -> KnowledgeBase:
+    """Verify the current user can access the knowledge base.
+
+    P0-1 fix: every chat/search request must prove the caller has access to
+    every KB they reference. Admins bypass this check; other users must be the
+    KB owner, since finer-grained sharing is enforced at the document/field
+    layer by the retrieval permission filter.
+    """
+    if _is_privileged_admin(current_user):
+        return await _get_kb(db, kb_id)
+    kb = await _get_kb(db, kb_id)
+    if kb.owner_id and str(kb.owner_id) != str(current_user.id):
+        raise PermissionDeniedException("没有权限访问该知识库")
+    return kb
 
 
 async def _retrieve_and_generate(
@@ -76,14 +110,42 @@ async def _retrieve_and_generate(
         chunks, max_tokens=max_context_tokens
     )
 
-    result = await generation_service.generate_answer(
-        db=db,
-        query=query,
-        context_chunks=chunks,
-        user_id=user_id,
-        stream=stream,
-        history=history,
-    )
+    result = None
+    try:
+        result = await generation_service.generate_answer(
+            db=db,
+            query=query,
+            context_chunks=chunks,
+            user_id=user_id,
+            stream=stream,
+            history=history,
+        )
+    except Exception as e:
+        # Graceful degradation: 生成服务失败时，回退到基于检索片段的回答
+        fallback_chunks = chunks[:5]
+        result = {
+            "answer": (
+                "抱歉，回答生成服务暂时不可用，以下是检索到的相关片段：\n\n"
+                + "\n\n---\n\n".join(
+                    (c.get("content", "") or "")[:500] for c in fallback_chunks
+                )
+            ),
+            "intercepted": False,
+            "sources": [
+                {
+                    "doc_id": c.get("doc_id"),
+                    "chunk_id": c.get("chunk_id"),
+                    "content": (c.get("content", "") or "")[:200],
+                    "score": c.get("rerank_score") or c.get("score", 0),
+                    "rerank_score": c.get("rerank_score"),
+                    "modality": c.get("modality", "text"),
+                    "position_info": c.get("position_info") or {},
+                }
+                for c in chunks
+            ],
+            "degraded": True,
+            "error": str(e),
+        }
     result["strategy"] = strategy
     return result
 
@@ -211,6 +273,11 @@ async def chat(
             user_id=current_user.id,
         )
 
+    # P0-1 fix: verify the caller can access every requested KB before invoking
+    # the retrieval/generation pipeline.
+    for kb_id in kb_ids or []:
+        await _require_kb_access(db, current_user, kb_id)
+
     result = await _retrieve_and_generate(
         db=db,
         user_id=current_user.id,
@@ -281,6 +348,11 @@ async def chat_stream(
             user_id=current_user.id,
         )
 
+    # P0-1 fix: verify the caller can access every requested KB before invoking
+    # the retrieval/generation pipeline (mirrors the non-streaming endpoint).
+    for kb_id in kb_ids or []:
+        await _require_kb_access(db, current_user, kb_id)
+
     async def event_generator():
         if security_gateway.detect_prompt_injection(request.query):
             yield {"data": "检测到提示注入攻击，请求已被拦截。"}
@@ -328,6 +400,7 @@ async def chat_stream(
                 "chunk_id": c.get("chunk_id"),
                 "content": (c.get("content", "") or "")[:200],
                 "score": c.get("rerank_score") or c.get("score", 0),
+                "rerank_score": c.get("rerank_score"),
                 "modality": c.get("modality", "text"),
                 "position_info": c.get("position_info") or {},
             }

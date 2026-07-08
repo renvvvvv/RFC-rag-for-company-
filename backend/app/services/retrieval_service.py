@@ -13,7 +13,14 @@ from app.retrieval.rerank_client import rerank_client
 from app.retrieval.vector_store import get_vector_store
 from app.services.keyword_service import KeywordService
 from app.services.permission_service import PermissionService
-from app.core.metrics import rag_retrieval_duration_seconds
+from app.core.metrics import (
+    rag_retrieval_duration_seconds,
+    rag_rerank_total,
+    rag_rerank_reordered_total,
+    rag_zero_result_total,
+    rag_top_doc_concentration,
+    rag_rerank_fallback_total,
+)
 
 
 class RetrievalService:
@@ -98,7 +105,7 @@ class RetrievalService:
                 vector_store.search_text,
                 query_embedding,
                 vector_filter,
-                top_k=top_k * 2,
+                top_k=max(top_k * 5, 50),
             )
             vector_hits.extend(text_results)
 
@@ -121,6 +128,18 @@ class RetrievalService:
             candidates = vector_hits
         else:
             candidates = bm25_hits
+
+        # 3.5 文档级去重（D40 垄断问题修复）
+        if candidates:
+            candidates = self._diversify_by_document(candidates, per_doc_limit=2)
+
+        # 3.6 文档级 MMR（提升 Hit@1 多样性）
+        if candidates:
+            candidates = self._mmr_rerank(
+                candidates,
+                lambda_param=0.6,
+                top_k=top_k * 2,
+            )
 
         if not candidates:
             return []
@@ -191,6 +210,42 @@ class RetrievalService:
         rag_retrieval_duration_seconds.labels(mode=mode).observe(
             time.perf_counter() - timer
         )
+
+        # 7. BadCase 监控指标埋点
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # 7.1 Rerank 排序变化统计
+        if reranked and filtered:
+            before_ids = [x["chunk_id"] for x in filtered[:rerank_top_k]]
+            after_ids = [x["chunk_id"] for x in reranked[:rerank_top_k]]
+            reordered = sum(1 for a, b in zip(before_ids, after_ids) if a != b)
+            rag_rerank_total.labels(mode=mode).inc()
+            if reordered > 0:
+                rag_rerank_reordered_total.labels(mode=mode).inc(reordered)
+
+        # 7.2 0 结果告警
+        if not reranked:
+            rag_zero_result_total.labels(mode=mode).inc()
+
+        # 7.3 文档集中度（Top-1 文档占比）
+        if reranked and len(reranked) >= 2:
+            top_doc_id = reranked[0].get("doc_id")
+            if top_doc_id:
+                same_doc_count = sum(1 for r in reranked if r.get("doc_id") == top_doc_id)
+                concentration = same_doc_count / len(reranked)
+                rag_top_doc_concentration.labels(mode=mode).observe(concentration)
+                if concentration >= 0.8:
+                    logger.warning(
+                        "BadCase 预警: top_doc_concentration=%.2f mode=%s query=%r",
+                        concentration, mode, query,
+                    )
+
+        # 7.4 Rerank fallback 告警
+        fallback_count = sum(1 for r in reranked if r.get("rerank_status") == "fallback_no_change")
+        if fallback_count > 0:
+            rag_rerank_fallback_total.labels(mode=mode).inc(fallback_count)
+
         return reranked
 
     async def semantic_search(
@@ -300,6 +355,96 @@ class RetrievalService:
             fused.append(item)
 
         return fused
+
+    def _diversify_by_document(
+        self, candidates: List[Dict[str, Any]], per_doc_limit: int = 2
+    ) -> List[Dict[str, Any]]:
+        """Limit the number of chunks per document to avoid one large document
+        drowning out smaller ones in the candidate pool."""
+        by_doc: Dict[str, List[Dict[str, Any]]] = {}
+        for hit in candidates:
+            doc_id = hit.get("doc_id") or hit.get("id", "unknown")
+            by_doc.setdefault(str(doc_id), []).append(hit)
+        diversified: List[Dict[str, Any]] = []
+        for doc_id, hits in by_doc.items():
+            diversified.extend(hits[:per_doc_limit])
+        return diversified
+
+    def _mmr_rerank(
+        self,
+        candidates: List[Dict[str, Any]],
+        embeddings: Optional[Dict[str, List[float]]] = None,
+        lambda_param: float = 0.6,
+        top_k: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Maximal Marginal Relevance reranking for document diversity.
+
+        Args:
+            candidates: List of candidate chunks with 'score' and optionally 'embedding'.
+            embeddings: Optional dict mapping chunk_id -> embedding vector.
+                       If None, only doc_id-based diversity is applied.
+            lambda_param: Trade-off between relevance (1.0) and diversity (0.0).
+            top_k: Number of results to return.
+
+        Returns:
+            Reranked list of chunks with MMR-based diversity.
+        """
+        if not candidates:
+            return candidates
+
+        # Normalize scores to [0, 1]
+        max_score = max(c.get("score", 0) for c in candidates)
+        min_score = min(c.get("score", 0) for c in candidates)
+        score_range = max(max_score - min_score, 1e-9)
+
+        for c in candidates:
+            c["_norm_score"] = (c.get("score", 0) - min_score) / score_range
+
+        selected: List[Dict[str, Any]] = []
+        remaining = list(candidates)
+
+        while len(selected) < top_k and remaining:
+            best_idx = -1
+            best_mmr = -float("inf")
+
+            for i, cand in enumerate(remaining):
+                # Relevance component
+                relevance = cand["_norm_score"]
+
+                # Diversity penalty: -max similarity to already-selected docs
+                diversity_penalty = 0.0
+                cand_doc = cand.get("doc_id", "")
+                cand_chunk_id = cand.get("chunk_id", "")
+
+                for sel in selected:
+                    # Strong penalty if same doc_id
+                    if cand_doc and sel.get("doc_id") == cand_doc:
+                        diversity_penalty = max(diversity_penalty, 0.9)
+                    # Otherwise compute chunk embedding similarity
+                    elif embeddings and cand_chunk_id in embeddings and sel.get("chunk_id") in embeddings:
+                        vec_a = embeddings[cand_chunk_id]
+                        vec_b = embeddings[sel.get("chunk_id")]
+                        # Cosine similarity
+                        dot = sum(a * b for a, b in zip(vec_a, vec_b))
+                        na = sum(a * a for a in vec_a) ** 0.5
+                        nb = sum(b * b for b in vec_b) ** 0.5
+                        sim = dot / (na * nb) if na * nb > 0 else 0.0
+                        diversity_penalty = max(diversity_penalty, sim)
+
+                mmr = lambda_param * relevance - (1 - lambda_param) * diversity_penalty
+
+                if mmr > best_mmr:
+                    best_mmr = mmr
+                    best_idx = i
+
+            if best_idx >= 0:
+                selected.append(remaining.pop(best_idx))
+
+        # Clean up temporary field
+        for c in selected:
+            c.pop("_norm_score", None)
+
+        return selected
 
 
 retrieval_service = RetrievalService()
