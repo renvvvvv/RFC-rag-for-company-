@@ -2,11 +2,11 @@ from typing import Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.v1.auth import get_current_user
+from app.api.v1.auth import get_current_user, is_admin
 from app.database import get_db
 from app.services.permission_service import PermissionService
 from app.core.cache import CacheManager
-from app.core.exceptions import NotFoundException, ValidationException
+from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
 from app.schemas.permission import (
     FileTypePermissionCreate, DocumentPermissionCreate,
     FieldPermissionCreate, TagPermissionCreate,
@@ -141,7 +141,9 @@ async def grant_permission(
     service: PermissionService = Depends(get_permission_service),
     current_user: UserResponse = Depends(get_current_user),
 ):
-    """统一授权入口。"""
+    """统一授权入口。P0-2 修复：仅 admin 可调用。"""
+    if not is_admin(current_user):
+        raise PermissionDeniedException("需要管理员权限才能授权")
     perm = await service.grant_permission(
         target_type=request.target_type,
         target_id=request.target_id,
@@ -180,7 +182,9 @@ async def grant_permissions_batch(
     service: PermissionService = Depends(get_permission_service),
     current_user: UserResponse = Depends(get_current_user),
 ):
-    """批量授权入口。任意子项失败会回滚整个批次。"""
+    """批量授权入口。任意子项失败会回滚整个批次。P0-2 修复：仅 admin 可调用。"""
+    if not is_admin(current_user):
+        raise PermissionDeniedException("需要管理员权限才能批量授权")
     results = await service.grant_permissions_batch(request.items)
     return {
         "message": "批量授权成功",

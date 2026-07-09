@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
 from app.api.v1.auth import get_current_user
+from app.core.exceptions import PermissionDeniedException
 from app.database import get_db
+from app.models.knowledge_base import KnowledgeBase
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
@@ -24,6 +26,31 @@ from app.services.retrieval_service import retrieval_service
 from app.services.security_gateway import security_gateway
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+async def _check_kb_ids_access(
+    db: AsyncSession,
+    current_user: UserResponse,
+    kb_ids: List[UUID],
+) -> None:
+    """P0-1 修复: 校验用户对所有 kb_ids 拥有访问权限。
+
+    - admin 账号（settings.ADMIN_USERNAMES）跳过检查
+    - 其他用户必须为每个 kb 的 owner
+    - 共享/成员权限可通过 PermissionService 后续扩展
+    """
+    from app.api.v1.auth import is_admin
+
+    if is_admin(current_user):
+        return
+    if not kb_ids:
+        return
+    for kb_id in kb_ids:
+        kb = await db.get(KnowledgeBase, kb_id)
+        if kb is None:
+            raise PermissionDeniedException(f"知识库 {kb_id} 不存在或无权访问")
+        if kb.owner_id and str(kb.owner_id) != str(current_user.id):
+            raise PermissionDeniedException("没有权限访问该知识库")
 
 
 async def _retrieve_and_generate(
@@ -232,6 +259,11 @@ async def chat(
             await db.commit()
         else:
             kb_ids = [UUID(k) for k in (conversation.kb_ids or [])]
+
+    # 校验当前用户对所有 kb_ids 的访问权限
+    await _check_kb_ids_access(db, current_user, kb_ids)
+
+    if conversation_id:
         history = await conversation_service.build_history_messages(
             db=db,
             conversation_id=conversation_id,
@@ -302,6 +334,11 @@ async def chat_stream(
             await db.commit()
         else:
             kb_ids = [UUID(k) for k in (conversation.kb_ids or [])]
+
+    # 校验当前用户对所有 kb_ids 的访问权限
+    await _check_kb_ids_access(db, current_user, kb_ids)
+
+    if conversation_id:
         history = await conversation_service.build_history_messages(
             db=db,
             conversation_id=conversation_id,

@@ -219,13 +219,13 @@ async def reprocess_document(
     db: AsyncSession = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """重新运行文档摄取流水线"""
-    service = DocumentService(db)
-    doc = await service.get_document(doc_id)
+    """重新运行文档摄取流水线。P0-3 修复：先校验 KB 所有权。"""
+    doc = await _require_document_access(db, current_user, doc_id)
 
     if doc.status == "processing":
         raise ValidationException("文档正在处理中，请稍后再试")
 
+    service = DocumentService(db)
     await service.clear_document_index(doc_id)
 
     await service.update_status(
