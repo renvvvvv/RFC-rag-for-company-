@@ -85,9 +85,9 @@ services:
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
       EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
       RERANK_SERVICE_URL: ${RERANK_SERVICE_URL:-http://rerank-service:8002/rerank}
-      RERANK_API_URL: https://api.siliconflow.cn/v1/rerank
-      RERANK_MODEL: BAAI/bge-reranker-v2-m3
-      RERANK_API_KEY: sk-jyiqqlgkzwzpmhzhweulkkapqygyduhhbotgsoudksdcycnl
+      RERANK_API_URL: ${RERANK_API_URL:-}
+      RERANK_MODEL: ${RERANK_MODEL:-}
+      RERANK_API_KEY: ${RERANK_API_KEY:-}
       LLM_API_URL: ${LLM_API_URL:-}
       LLM_MODEL: ${LLM_MODEL:-minimax-m3}
       LLM_API_KEY: ${LLM_API_KEY:-}
@@ -157,9 +157,9 @@ services:
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
       EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
       RERANK_SERVICE_URL: ${RERANK_SERVICE_URL:-http://rerank-service:8002/rerank}
-      RERANK_API_URL: https://api.siliconflow.cn/v1/rerank
-      RERANK_MODEL: BAAI/bge-reranker-v2-m3
-      RERANK_API_KEY: sk-jyiqqlgkzwzpmhzhweulkkapqygyduhhbotgsoudksdcycnl
+      RERANK_API_URL: ${RERANK_API_URL:-}
+      RERANK_MODEL: ${RERANK_MODEL:-}
+      RERANK_API_KEY: ${RERANK_API_KEY:-}
       LLM_API_URL: ${LLM_API_URL:-}
       LLM_MODEL: ${LLM_MODEL:-minimax-m3}
       LLM_API_KEY: ${LLM_API_KEY:-}
@@ -171,6 +171,8 @@ services:
       ADMIN_USERNAMES: ${ADMIN_USERNAMES:-admin}
     volumes:
       - ./backend/.env:/app/.env:ro
+      - ./backend/app:/app/app    # 挂载代码目录，支持热更新
+      - ./samples_2:/app/samples_2  # 挂载测试样本目录
       - local_storage:/data/rag-documents
     depends_on:
       postgres:
