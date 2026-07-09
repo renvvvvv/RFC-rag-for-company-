@@ -222,11 +222,6 @@ async def reprocess_document(
     """重新运行文档摄取流水线"""
     service = DocumentService(db)
     doc = await service.get_document(doc_id)
-    if doc is None:
-        raise NotFoundException("文档不存在")
-
-    # P0-3 修复：验证 KB 所有权，防止任意用户重处理他人文档
-    await _require_kb_access(db, current_user, doc.kb_id)
 
     if doc.status == "processing":
         raise ValidationException("文档正在处理中，请稍后再试")

@@ -14,7 +14,7 @@ class EmbeddingClient:
     """用户提供的Embedding模型HTTP客户端"""
 
     def __init__(self):
-        self.timeout = 90.0
+        self.timeout = 60.0
         self.max_retries = 3
         self.base_delay = 1.0
 

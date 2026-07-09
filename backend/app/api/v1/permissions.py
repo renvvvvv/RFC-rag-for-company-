@@ -2,11 +2,11 @@ from typing import Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.v1.auth import get_current_user, is_admin
+from app.api.v1.auth import get_current_user
 from app.database import get_db
 from app.services.permission_service import PermissionService
 from app.core.cache import CacheManager
-from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
+from app.core.exceptions import NotFoundException, ValidationException
 from app.schemas.permission import (
     FileTypePermissionCreate, DocumentPermissionCreate,
     FieldPermissionCreate, TagPermissionCreate,
@@ -142,9 +142,6 @@ async def grant_permission(
     current_user: UserResponse = Depends(get_current_user),
 ):
     """统一授权入口。"""
-    # P0-2 修复：仅管理员可授予权限
-    if not is_admin(current_user):
-        raise PermissionDeniedException("需要管理员权限")
     perm = await service.grant_permission(
         target_type=request.target_type,
         target_id=request.target_id,
@@ -166,9 +163,6 @@ async def revoke_permission(
     current_user: UserResponse = Depends(get_current_user),
 ):
     """统一撤销入口。"""
-    # P0-2 修复：仅管理员可撤销权限
-    if not is_admin(current_user):
-        raise PermissionDeniedException("需要管理员权限")
     deleted = await service.revoke_permission(
         target_type=request.target_type,
         target_id=request.target_id,

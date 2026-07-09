@@ -10,7 +10,6 @@ class SourceItem(BaseModel):
     chunk_id: Optional[str]
     content: str
     score: float
-    rerank_score: Optional[float] = None
     modality: str
     position_info: Optional[Dict[str, Any]] = None
     page: Optional[int] = None

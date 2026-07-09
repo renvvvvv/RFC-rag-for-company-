@@ -65,6 +65,8 @@ services:
       dockerfile: Dockerfile.lightweight
     image: ${BACKEND_IMAGE:-your-dockerhub-username/rag-backend}:${IMAGE_TAG:-latest}
     container_name: rag-lw-app-backend
+    env_file:
+      - ./backend/.env
     ports:
       - "8080:8080"
     environment:
@@ -82,19 +84,9 @@ services:
       OCR_ENABLED: ${OCR_ENABLED:-false}
       AUDIO_TRANSCRIPTION_ENABLED: ${AUDIO_TRANSCRIPTION_ENABLED:-false}
       TESSDATA_PREFIX: ${TESSDATA_PREFIX:-/usr/share/tesseract-ocr/4.00/tessdata}
-      # Model service endpoints (configure in .env for real providers)
-      EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL:-http://embedding-service:8080}
-      EMBEDDING_API_URL: ${EMBEDDING_API_URL:-}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-large}
-      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
-      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
-      RERANK_SERVICE_URL: ${RERANK_SERVICE_URL:-http://rerank-service:8002/rerank}
-      RERANK_API_URL: ${RERANK_API_URL:-}
-      RERANK_MODEL: ${RERANK_MODEL:-bge-reranker-large}
-      RERANK_API_KEY: ${RERANK_API_KEY:-}
-      LLM_API_URL: ${LLM_API_URL:-}
-      LLM_MODEL: ${LLM_MODEL:-minimax-m3}
-      LLM_API_KEY: ${LLM_API_KEY:-}
+      # Model service endpoints are loaded from backend/.env (mounted at /app/.env)
+      # via the env_file directive above.  Avoid hard-coding empty values here
+      # because they would override the values read from backend/.env.
       MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
       MINIMAX_BASE_URL: ${MINIMAX_BASE_URL:-https://api.minimax.chat}
       # JWT (set a real secret in production)

@@ -317,7 +317,6 @@ async def external_chat_stream(
                 "chunk_id": c.get("chunk_id"),
                 "content": (c.get("content", "") or "")[:200],
                 "score": c.get("rerank_score") or c.get("score", 0),
-                "rerank_score": c.get("rerank_score"),
                 "modality": c.get("modality", "text"),
                 "position_info": c.get("position_info") or {},
             }

@@ -133,14 +133,6 @@ class RetrievalService:
         if candidates:
             candidates = self._diversify_by_document(candidates, per_doc_limit=2)
 
-        # 3.6 文档级 MMR（提升 Hit@1 多样性）
-        if candidates:
-            candidates = self._mmr_rerank(
-                candidates,
-                lambda_param=0.6,
-                top_k=top_k * 2,
-            )
-
         if not candidates:
             return []
 
@@ -369,82 +361,6 @@ class RetrievalService:
         for doc_id, hits in by_doc.items():
             diversified.extend(hits[:per_doc_limit])
         return diversified
-
-    def _mmr_rerank(
-        self,
-        candidates: List[Dict[str, Any]],
-        embeddings: Optional[Dict[str, List[float]]] = None,
-        lambda_param: float = 0.6,
-        top_k: int = 5,
-    ) -> List[Dict[str, Any]]:
-        """Maximal Marginal Relevance reranking for document diversity.
-
-        Args:
-            candidates: List of candidate chunks with 'score' and optionally 'embedding'.
-            embeddings: Optional dict mapping chunk_id -> embedding vector.
-                       If None, only doc_id-based diversity is applied.
-            lambda_param: Trade-off between relevance (1.0) and diversity (0.0).
-            top_k: Number of results to return.
-
-        Returns:
-            Reranked list of chunks with MMR-based diversity.
-        """
-        if not candidates:
-            return candidates
-
-        # Normalize scores to [0, 1]
-        max_score = max(c.get("score", 0) for c in candidates)
-        min_score = min(c.get("score", 0) for c in candidates)
-        score_range = max(max_score - min_score, 1e-9)
-
-        for c in candidates:
-            c["_norm_score"] = (c.get("score", 0) - min_score) / score_range
-
-        selected: List[Dict[str, Any]] = []
-        remaining = list(candidates)
-
-        while len(selected) < top_k and remaining:
-            best_idx = -1
-            best_mmr = -float("inf")
-
-            for i, cand in enumerate(remaining):
-                # Relevance component
-                relevance = cand["_norm_score"]
-
-                # Diversity penalty: -max similarity to already-selected docs
-                diversity_penalty = 0.0
-                cand_doc = cand.get("doc_id", "")
-                cand_chunk_id = cand.get("chunk_id", "")
-
-                for sel in selected:
-                    # Strong penalty if same doc_id
-                    if cand_doc and sel.get("doc_id") == cand_doc:
-                        diversity_penalty = max(diversity_penalty, 0.9)
-                    # Otherwise compute chunk embedding similarity
-                    elif embeddings and cand_chunk_id in embeddings and sel.get("chunk_id") in embeddings:
-                        vec_a = embeddings[cand_chunk_id]
-                        vec_b = embeddings[sel.get("chunk_id")]
-                        # Cosine similarity
-                        dot = sum(a * b for a, b in zip(vec_a, vec_b))
-                        na = sum(a * a for a in vec_a) ** 0.5
-                        nb = sum(b * b for b in vec_b) ** 0.5
-                        sim = dot / (na * nb) if na * nb > 0 else 0.0
-                        diversity_penalty = max(diversity_penalty, sim)
-
-                mmr = lambda_param * relevance - (1 - lambda_param) * diversity_penalty
-
-                if mmr > best_mmr:
-                    best_mmr = mmr
-                    best_idx = i
-
-            if best_idx >= 0:
-                selected.append(remaining.pop(best_idx))
-
-        # Clean up temporary field
-        for c in selected:
-            c.pop("_norm_score", None)
-
-        return selected
 
 
 retrieval_service = RetrievalService()
