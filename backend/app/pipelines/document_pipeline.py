@@ -51,6 +51,8 @@ class DocumentIngestPipeline(BaseIngestPipeline):
             extracted_text = ""
 
         merged_meta = {**metadata, **doc_metadata}
+        # 2026-07-08: 文本清洗（在切分前执行）
+        extracted_text = self._clean_text(extracted_text)
         chunks = self._chunk_text(extracted_text)
         for chunk in chunks:
             chunk["metadata"] = {**chunk.get("metadata", {}), **merged_meta}
@@ -156,30 +158,64 @@ class DocumentIngestPipeline(BaseIngestPipeline):
 
             actual_path = file_path
 
-            # 2026-07-06: 支持 .ppt 旧格式，先用 libreoffice 转换成 .pptx
+            # 2026-07-06: 支持 .ppt 旧格式
+            # 2026-07-08: 优化 - 先复制到简单路径避免中文路径问题
             if file_path.lower().endswith('.ppt') and not file_path.lower().endswith('.pptx'):
-                # .ppt 旧格式需要先转换
-                converted_path = file_path.rsplit('.', 1)[0] + '.pptx'
+                import shutil
+                tmp_input = '/tmp/convert_input.ppt'
+                tmp_output = '/tmp/convert_input.pptx'
+
                 try:
+                    # 复制到简单路径（避免中文路径问题）
+                    shutil.copy2(file_path, tmp_input)
+
+                    # 转换成 pptx
                     result = subprocess.run(
-                        ['libreoffice', '--headless', '--convert-to', 'pptx', file_path, '--outdir', '/tmp/'],
-                        capture_output=True, text=True, timeout=60
+                        ['libreoffice', '--headless', '--convert-to', 'pptx', tmp_input, '--outdir', '/tmp/'],
+                        capture_output=True, text=True, timeout=120
                     )
-                    # 检查转换是否成功
-                    tmp_converted = '/tmp/' + Path(file_path).stem + '.pptx'
-                    if Path(tmp_converted).exists():
-                        actual_path = tmp_converted
+
+                    if Path(tmp_output).exists():
+                        actual_path = tmp_output
+                    else:
+                        return f"[PPT转换失败: 输出文件不存在]", {}
                 except Exception as e:
                     return f"[PPT转换失败: {str(e)}]", {}
+                finally:
+                    # 清理临时文件
+                    Path(tmp_input).unlink(missing_ok=True)
 
             # 用 python-pptx 解析
             from pptx import Presentation
             prs = Presentation(actual_path)
             texts = []
-            for slide in prs.slides:
+
+            for slide_idx, slide in enumerate(prs.slides):
+                slide_texts = []
+                slide_texts.append(f"--- 第{slide_idx +1}页 ---")
+
                 for shape in slide.shapes:
-                    if hasattr(shape, "text") and shape.text.strip():
-                        texts.append(shape.text.strip())
+                    try:
+                        # 提取普通文本
+                        if hasattr(shape, "text") and shape.text.strip():
+                            slide_texts.append(shape.text.strip())
+
+                        # 提取表格内容
+                        if shape.has_table:
+                            table = shape.table
+                            for row in table.rows:
+                                row_texts = []
+                                for cell in row.cells:
+                                    if cell.text.strip():
+                                        row_texts.append(cell.text.strip())
+                                if row_texts:
+                                    slide_texts.append(" | ".join(row_texts))
+                    except Exception:
+                        # 跳过无法读取的形状
+                        continue
+
+                if len(slide_texts) > 1:  # 有实际内容
+                    texts.append("\n".join(slide_texts))
 
             core_props = prs.core_properties
             metadata = {
@@ -188,7 +224,12 @@ class DocumentIngestPipeline(BaseIngestPipeline):
                 "page_count": len(prs.slides),
                 "language": self._detect_language("\n".join(texts)),
             }
-            return "\n".join(texts), metadata
+
+            # 清理转换后的临时文件
+            if actual_path == '/tmp/convert_input.pptx':
+                Path(actual_path).unlink(missing_ok=True)
+
+            return "\n\n".join(texts), metadata
         except Exception as e:
             return f"[解析失败: {str(e)}]", {}
 
@@ -300,6 +341,8 @@ class DocumentIngestPipeline(BaseIngestPipeline):
         if len(paragraphs) < 3:
             paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
 
+        max_para_len = max((len(p) for p in paragraphs), default=0)
+
         # 2. 合并小段落
         merged = []
         current = ""
@@ -313,23 +356,52 @@ class DocumentIngestPipeline(BaseIngestPipeline):
         if current:
             merged.append(current)
 
+
         # 3. 拆分大段落（特殊处理表格和目录）
         for chunk in merged:
-            # 判断是否是表格或目录（不拆分）
-            is_table = '[TABLE]' in chunk
-            is_directory = '.....' in chunk and chunk.count('.....') > 3
-
-            if is_table or is_directory:
-                # 表格、目录单独作为一个 chunk，不拆分
+            # 判断是否是表格块（以[TABLE]开头[/TABLE]结尾）、目录（不拆分）
+            stripped = chunk.strip()
+            is_table = stripped.startswith('[TABLE]') and stripped.endswith('[/TABLE]')
+            # 目录块：大部分行包含 '.....'  点划线（且不是正文中偶然出现的省略号）
+            dir_lines = [l for l in stripped.split('\n') if '.....' in l]
+            is_directory = len(dir_lines) >= 5 and len(dir_lines) > len(stripped.split('\n')) * 0.5
+            if is_table:
+                # 表格块不拆分
                 chunks.append(chunk)
-            elif len(chunk) > max_size:
+            elif is_directory and len(chunk) <= max_size:
+                # 小目录块不拆分
+                chunks.append(chunk)
+            elif len(chunk) > max_size or (is_directory and len(chunk) > max_size):
                 # 非表格内容才拆分
                 sentences = self._split_by_sentence(chunk)
                 sub_chunks = self._merge_sentences(sentences, target_size)
+
+                # 2026-07-08: 兜底逻辑 — 句子切分后仍有超大块（>2000字符）的按 \n 硬切
+                # 注意：只对非表格块生效（表格块以 [TABLE] 开头、[/TABLE] 结尾）
+                final_sub = []
+                for sub in sub_chunks:
+                    is_table_block = sub.strip().startswith('[TABLE]') and sub.strip().endswith('[/TABLE]')
+                    if len(sub) > 2000 and not is_table_block:
+                        lines = sub.split('\n')
+                        current_line = ""
+                        for line in lines:
+                            if len(current_line) + len(line) <= target_size:
+                                current_line += '\n' + line if current_line else line
+                            else:
+                                if current_line:
+                                    final_sub.append(current_line)
+                                current_line = line
+                        if current_line:
+                            final_sub.append(current_line)
+                    else:
+                        final_sub.append(sub)
+                sub_chunks = final_sub
+
                 for sub_chunk in sub_chunks:
                     chunks.append(sub_chunk)
             else:
                 chunks.append(chunk)
+
 
         # 4. 强制合并小 chunks
         chunks = self._merge_small_chunks_aggressive(chunks, min_size)
@@ -357,8 +429,14 @@ class DocumentIngestPipeline(BaseIngestPipeline):
 
         return result
 
-    def _merge_small_chunks_aggressive(self, chunks: List[str], min_size: int) -> List[str]:
+    # def _merge_small_chunks_aggressive(self, chunks: List[str], min_size: int) -> List[str]:
         """强制合并小 chunks，确保每个 chunk 至少 min_size 字符"""
+        max_before = max((len(c) for c in chunks), default=0)
+        result = self.__merge_aggressive(chunks, min_size)
+        max_after = max((len(r) for r in result), default=0)
+        return result
+
+    def _merge_small_chunks_aggressive(self, chunks: List[str], min_size: int) -> List[str]:
         if not chunks:
             return chunks
 
