@@ -68,64 +68,73 @@ QUERY_ANNOTATIONS: List[Dict[str, Any]] = [
     {
         "query": "SOH显示电池异常，电池放电电压较低。",
         "expected_files": [
-            "01_iBattery 3.0 快速指南.pdf",
-            "02_iBattery 3.0 用户手册.pdf"
+            "02_iBattery 3.0 用户手册.pdf_chunk61",
         ],
     },
     {
         "query": "iBOX的RF_Z指示灯不亮了",
         "expected_files": [
-            "01_iBattery 3.0 快速指南.pdf",
-            "02_iBattery 3.0 用户手册.pdf"
+            "01_iBattery 3.0 快速指南.pdf_chunk12",
+            "02_iBattery 3.0 用户手册.pdf_chunk53",
+            "02_iBattery 3.0 用户手册.pdf_chunk71",
         ],
     },
     {
         "query": "下发电池电压低关机的命令是什么",
         "expected_files": [
-            "03_UPS5000-E-(20kVA-40kVA) 用户手册 (一体化UPS 2.0, 武汉工行).pdf",
-            "05_UPS5000-E-(20kVA-80kVA) 用户手册 (一体化UPS, 208V).pdf"
+            "03_UPS5000-E-(20kVA-40kVA) 用户手册 (一体化UPS 2.0, 武汉工行).pdf_chunk169",
+            "03_UPS5000-E-(20kVA-40kVA) 用户手册 (一体化UPS 2.0, 武汉工行).pdf_chunk170",
+            "05_UPS5000-E-(20kVA-80kVA) 用户手册 (一体化UPS, 208V).pdf_chunk183",
+            "05_UPS5000-E-(20kVA-80kVA) 用户手册 (一体化UPS, 208V).pdf_chunk184",
         ],
     },
     {
         "query": "开关状态线不正常，系统输出开关断开。",
-            "expected_files": [
-           "18_UPS5000 告警参考.pdf"
+        "expected_files": [
+            "18_UPS5000 告警参考.pdf_chunk638",
+            "18_UPS5000 告警参考.pdf_chunk639",
         ],
     },
     {
         "query": "UPS5000E工作模式_维修旁路是什么",
-        "expected_files": ["09_UPS5000-E-(25kVA-75kVA) V100R003C01 培训资料.ppt"],
+        "expected_files": [
+            "09_UPS5000-E-(25kVA-75kVA) V100R003C01 培训资料.ppt_chunk1",
+        ],
     },
     {
         "query": "怎么连接出风边柜电源线",
         "expected_files": [
-            "15_UPS5000 上出风边柜 用户手册.pdf"
+            "15_UPS5000 上出风边柜 用户手册.pdf_chunk13",
+            "15_UPS5000 上出风边柜 用户手册.pdf_chunk14",
         ],
     },
     {
-        "query": "MDU（监控显示模块）在哪个位置",
+        "query": "MDU显示屏接口有哪些",
         "expected_files": [
-            "10_UPS5000-E 监控模块 用户手册.pdf",
+            "07_UPS5000-E-(25kVA-75kVA)-BF 用户手册.pdf_chunk83",
         ],
     },
     {
         "query": "母线电压未升起，UPS整流器无法工作",
         "expected_files": [
-            "07_UPS5000-E-(25kVA-75kVA)-BF 用户手册.pdf",     ],
+            "07_UPS5000-E-(25kVA-75kVA)-BF 用户手册.pdf_chunk172",
+            "11_UPS5000-E 维护指南.pdf_chunk65",
+            "18_UPS5000 告警参考.pdf_chunk307",
+        ],
     },
     {
-        "query": "相连底座用什么并联",
+        "query": "支脚机柜2400*850（四柜）的底座是如何并联的",
         "expected_files": [
-            "14_UPS5000&SmartLi 机柜底座接口图.xlsx",
+            "14_UPS5000&SmartLi 机柜底座接口图.xlsx_chunk14",
+            "14_UPS5000&SmartLi 机柜底座接口图.xlsx_chunk9",
         ],
     },
     {
         "query": "逆变器异常",
         "expected_files": [
-          "07_UPS5000-E-(25kVA-75kVA)-BF 用户手册.pdf",
-          "11_UPS5000-E 维护指南.pdf",
-          "13_UPS5000&SmartLi FAQ.pdf",
-          "09_UPS5000-E-(25kVA-75kVA) V100R003C01 培训资料.ppt"
+            "18_UPS5000 告警参考.pdf_chunk51",
+            "07_UPS5000-E-(25kVA-75kVA)-BF 用户手册.pdf_chunk201",
+            "11_UPS5000-E 维护指南.pdf_chunk65",
         ],
     },
 ]
@@ -318,22 +327,56 @@ def evaluate_query(
     kb_id: str,
     query: str,
     relevant_doc_ids: Set[str],
-    modes: Sequence[str],
-    top_k: int,
-    rerank_top_k: int,
+    doc_id_to_filename: Dict[str, str] = None,
+    modes: Sequence[str] = ("hybrid", "semantic", "keyword"),
+    top_k: int = 10,
+    rerank_top_k: int = 20,
 ) -> Dict[str, Any]:
     per_mode: Dict[str, Any] = {}
+    # 解析期望列表，分离 chunk 级和文件级
+    expected_filenames: Set[str] = set()
+    expected_chunks: Set[str] = set()
+    for e in relevant_doc_ids:
+        if '_chunk' in e:
+            expected_chunks.add(e)
+            # 也提取文件名部分，用于文件名级别匹配
+            fname = e.split('_chunk')[0]
+            expected_filenames.add(fname)
+        else:
+            expected_filenames.add(e)
+
     for mode in modes:
         response = search(token, kb_id, query, mode, top_k, rerank_top_k)
         retrieved_doc_ids = [r.get("doc_id") for r in response.get("results", []) if r.get("doc_id")]
 
+        # chunk 级匹配
+        retrieved_chunk_ids = []
+        for r in response.get("results", []):
+            doc_id = r.get("doc_id", "")
+            chunk_idx = (r.get("position_info") or {}).get("chunk_index", "")
+            fname = doc_id_to_filename.get(doc_id, doc_id[:8]) if doc_id_to_filename else doc_id[:8]
+            if chunk_idx is not None:
+                retrieved_chunk_ids.append(f"{fname}_chunk{chunk_idx}")
+            else:
+                retrieved_chunk_ids.append(fname)
+
+        # 对 chunk 级期望，用 retrieved_chunk_ids 计算；否则用 retrieved_doc_ids
+        if expected_chunks:
+            used_retrieved = retrieved_chunk_ids
+            used_relevant = expected_chunks | expected_filenames
+        else:
+            used_retrieved = retrieved_doc_ids
+            used_relevant = expected_filenames
+
         per_mode[mode] = {
             "total": response.get("total", 0),
             "retrieved_doc_ids": retrieved_doc_ids,
-            "recall@k": {k: recall_at_k(retrieved_doc_ids, relevant_doc_ids, k) for k in K_VALUES},
-            "precision@k": {k: precision_at_k(retrieved_doc_ids, relevant_doc_ids, k) for k in K_VALUES},
-            "mrr": mrr(retrieved_doc_ids, relevant_doc_ids),
-            "ndcg@k": {k: ndcg_at_k(retrieved_doc_ids, relevant_doc_ids, k) for k in K_VALUES},
+            "retrieved_chunk_ids": retrieved_chunk_ids[:10],
+            "results_raw": response.get("results", []),
+            "recall@k": {k: recall_at_k(used_retrieved, used_relevant, k) for k in K_VALUES},
+            "precision@k": {k: precision_at_k(used_retrieved, used_relevant, k) for k in K_VALUES},
+            "mrr": mrr(used_retrieved, used_relevant),
+            "ndcg@k": {k: ndcg_at_k(used_retrieved, used_relevant, k) for k in K_VALUES},
         }
     return {"query": query, "relevant_doc_ids": relevant_doc_ids, "modes": per_mode}
 
@@ -383,10 +426,12 @@ def print_results(
     for r in results:
         print(f"\nQuery: {r['query']}")
 
-        # 打印期望的文件
+        # 打印期望的文件/chunks
         expected_files = []
         for doc_id in sorted(r['relevant_doc_ids']):
-            if doc_id_to_filename and doc_id in doc_id_to_filename:
+            if '_chunk' in doc_id:
+                expected_files.append(doc_id)  # chunk 级标注直接显示全名
+            elif doc_id_to_filename and doc_id in doc_id_to_filename:
                 expected_files.append(f"{doc_id_to_filename[doc_id]}")
             else:
                 expected_files.append(doc_id[:8])
@@ -396,20 +441,24 @@ def print_results(
             mode_result = r["modes"][mode]
             print(f"  [{mode:8}] total={mode_result['total']}")
 
-            # 2026-07-03: 添加返回的文件列表（去重）
-            if mode == "hybrid" and doc_id_to_filename:
+            # 显示返回的 chunks（按实际排名，不按文件去重）
+            retrieved_chunk_ids = mode_result.get('retrieved_chunk_ids', [])
+            if retrieved_chunk_ids:
+                display = retrieved_chunk_ids[:5]  # 只显示前5个，不按文件去重
+                print(f"    top chunks : {display}")
+            elif mode == "hybrid" and doc_id_to_filename:
                 retrieved_doc_ids = mode_result.get('retrieved_doc_ids', [])
                 retrieved_files = []
                 seen_doc_ids = set()
                 for doc_id in retrieved_doc_ids:
                     if doc_id in seen_doc_ids:
-                        continue  # 跳过重复的 doc_id
+                        continue
                     seen_doc_ids.add(doc_id)
                     if doc_id in doc_id_to_filename:
                         retrieved_files.append(doc_id_to_filename[doc_id])
                     else:
                         retrieved_files.append(doc_id[:8])
-                    if len(retrieved_files) >= 5:  # 只显示前 5 个不重复的文件
+                    if len(retrieved_files) >= 5:
                         break
                 print(f"    returned    : {retrieved_files}")
 
@@ -447,13 +496,13 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--top-k",
         type=int,
-        default=10,
+        default=30,
         help="Per-channel recall count passed to the search API",
     )
     parser.add_argument(
         "--rerank-top-k",
         type=int,
-        default=10,
+        default=20,
         help="Number of results returned after reranking",
     )
     parser.add_argument(
@@ -539,26 +588,41 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     for qa in QUERY_ANNOTATIONS:
         relevant_doc_ids: Set[str] = set()
         for filename in qa["expected_files"]:
-            doc_id = filename_to_doc_id.get(filename)
+            # 支持 chunk 级别标注：filename_chunkN，去掉 _chunkN 获取文档名
+            doc_key = filename
+            if '_chunk' in filename:
+                doc_name = filename.split('_chunk')[0]
+            else:
+                doc_name = filename
+            # 先精确匹配，再模糊匹配
+            doc_id = filename_to_doc_id.get(doc_name)
             if not doc_id:
-                print(f"[WARN] Could not map expected file '{filename}' to a doc_id")
+                # 模糊匹配：截断后匹配（处理文件名被截断的情况）
+                for mapped_name, mapped_id in filename_to_doc_id.items():
+                    if doc_name in mapped_name or mapped_name in doc_name:
+                        doc_id = mapped_id
+                        break
+            if doc_id:
+                relevant_doc_ids.add(doc_key)
+            else:
+                print(f"[WARN] Could not map expected file '{doc_name}' to a doc_id")
                 continue
-            relevant_doc_ids.add(doc_id)
         if relevant_doc_ids:
             annotated_queries.append((qa["query"], relevant_doc_ids))
 
     # Run evaluation.
     print("\n[INFO] Running evaluation queries...")
     results: List[Dict[str, Any]] = []
+    # 构建反向映射: doc_id -> filename
+    doc_id_to_filename = {v: k for k, v in filename_to_doc_id.items()}
+
     for query, relevant_doc_ids in annotated_queries:
         result = evaluate_query(
             token=token,
             kb_id=kb_id,
             query=query,
             relevant_doc_ids=relevant_doc_ids,
-            modes=modes,
-            top_k=args.top_k,
-            rerank_top_k=args.rerank_top_k,
+            doc_id_to_filename=doc_id_to_filename,
         )
         results.append(result)
 
